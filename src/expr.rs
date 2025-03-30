@@ -1,15 +1,15 @@
-use std::{marker::PhantomData, num::NonZero, slice, str};
+use std::{collections::HashMap, fmt, marker::PhantomData, num::NonZero, slice, str};
 use typed_arena::Arena;
 
 /// Visit a Lambda expression
-pub trait ExprVisitor {
+pub trait ExprVisitor<'a> {
   type Output;
 
   fn visit_term(&mut self, de_bruijn_index: NonZero<u64>) -> Self::Output;
 
-  fn visit_lambda<'a>(&mut self, body: ExprRef<'a>, parameter_name: &'a str) -> Self::Output;
+  fn visit_lambda(&mut self, body: ExprRef<'a>, parameter_name: &'a str) -> Self::Output;
 
-  fn visit_eval<'a>(&mut self, left: ExprRef<'a>, right: ExprRef<'a>) -> Self::Output;
+  fn visit_eval(&mut self, left: ExprRef<'a>, right: ExprRef<'a>) -> Self::Output;
 }
 
 const LENGTH_MASK: u64 = 0xffff_0000_0000_0000;
@@ -25,9 +25,9 @@ const POINTER_MASK: u64 = 0x0000_ffff_ffff_ffff;
 pub struct ExprRef<'a>(u64, PhantomData<&'a CompactExpr>);
 
 #[allow(unused)]
-impl ExprRef<'_> {
+impl<'a> ExprRef<'a> {
   #[inline]
-  pub fn visit<V: ExprVisitor>(self, visitor: &mut V) -> <V as ExprVisitor>::Output {
+  pub fn visit<V: ExprVisitor<'a>>(self, visitor: &mut V) -> <V as ExprVisitor<'a>>::Output {
     if self.0 & POINTER_MASK == 0 {
       // Safety: we only construct an ExprRef from a non-zero length
       let de_bruijn_index = unsafe { NonZero::new_unchecked(self.0 >> LENGTH_SHIFT) };
@@ -38,6 +38,71 @@ impl ExprRef<'_> {
       let compact_expr_ref = unsafe { &*((self.0 & POINTER_MASK) as *const CompactExpr) };
       compact_expr_ref.visit(visitor)
     }
+  }
+}
+
+impl fmt::Display for ExprRef<'_> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    struct Visitor<'f, 'ff, 's> {
+      f: &'f mut fmt::Formatter<'ff>,
+      lambda_parameters: Vec<(&'s str, u64)>,
+      shadowed_variables: HashMap<&'s str, u64>,
+    }
+
+    impl<'s> ExprVisitor<'s> for Visitor<'_, '_, 's> {
+      type Output = fmt::Result;
+
+      fn visit_term(&mut self, de_bruijn_index: NonZero<u64>) -> Self::Output {
+        let term = self.lambda_parameters[self.lambda_parameters.len() - de_bruijn_index.get() as usize];
+        write!(self.f, "{}", term.0)?;
+
+        for _ in 0..term.1 {
+          write!(self.f, "′")?;
+        }
+
+        Ok(())
+      }
+
+      fn visit_lambda(&mut self, body: ExprRef<'s>, parameter_name: &'s str) -> Self::Output {
+        let count = self
+          .shadowed_variables
+          .entry(parameter_name)
+          .and_modify(|c| *c += 1)
+          .or_insert(0);
+
+        write!(self.f, "λ{}", parameter_name)?;
+        for _ in 0..*count {
+          write!(self.f, "′")?;
+        }
+        write!(self.f, ".")?;
+
+        self.lambda_parameters.push((parameter_name, *count));
+        body.visit(self)?;
+        self.lambda_parameters.pop();
+
+        self.shadowed_variables.entry(parameter_name).and_modify(|c| {
+          if *c > 0 {
+            *c -= 1
+          }
+        });
+
+        Ok(())
+      }
+
+      fn visit_eval(&mut self, left: ExprRef<'s>, right: ExprRef<'s>) -> Self::Output {
+        write!(self.f, "(")?;
+        left.visit(self)?;
+        write!(self.f, " ")?;
+        right.visit(self)?;
+        write!(self.f, ")")
+      }
+    }
+
+    self.visit(&mut Visitor {
+      f,
+      lambda_parameters: Vec::new(),
+      shadowed_variables: HashMap::new(),
+    })
   }
 }
 
@@ -67,7 +132,7 @@ impl CompactExpr {
     }
   }
 
-  pub fn new_lambda<'a>(body: ExprRef<'a>, param_name: &'a str) -> Self {
+  pub fn new_lambda<'a>(param_name: &'a str, body: ExprRef<'a>) -> Self {
     debug_assert!(!param_name.is_empty(), "Lambda cannot have an empty parameter name");
     debug_assert!(
       param_name.len() as u64 <= MAX_LENGTH,
@@ -92,7 +157,7 @@ impl CompactExpr {
     }
   }
 
-  pub fn visit<V: ExprVisitor>(self, visitor: &mut V) -> <V as ExprVisitor>::Output {
+  pub fn visit<'a, V: ExprVisitor<'a>>(self, visitor: &mut V) -> <V as ExprVisitor<'a>>::Output {
     if self.left == 0 {
       let de_bruijn_index = unsafe { NonZero::new_unchecked(self.right) };
       return visitor.visit_term(de_bruijn_index);
@@ -139,8 +204,8 @@ impl Allocator {
   }
 
   /// The parameter name must be 65,535 characters or less
-  pub fn new_lambda<'a>(&'a self, body: ExprRef<'a>, param_name: &'a str) -> ExprRef<'a> {
-    let lambda = self.arena.alloc(CompactExpr::new_lambda(body, param_name));
+  pub fn new_lambda<'a>(&'a self, param_name: &'a str, body: ExprRef<'a>) -> ExprRef<'a> {
+    let lambda = self.arena.alloc(CompactExpr::new_lambda(param_name, body));
     let lambda_ptr = lambda as *const CompactExpr as u64;
     debug_assert!(lambda_ptr & LENGTH_MASK == 0, "Lambda pointer has high bits set to 0");
 

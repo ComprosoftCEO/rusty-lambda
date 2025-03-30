@@ -1,6 +1,21 @@
+use std::num::NonZero;
+
 mod expr;
 mod term;
 
 fn main() {
-  println!("Hello, world! {}", size_of::<term::Term>());
+  let allocator = expr::Allocator::new();
+
+  let lambda = allocator.new_lambda(
+    "x",
+    allocator.new_lambda(
+      "x",
+      allocator.new_eval(
+        allocator.new_term(NonZero::new(1).unwrap()),
+        allocator.new_term(NonZero::new(2).unwrap()),
+      ),
+    ),
+  );
+
+  println!("{}", lambda)
 }
