@@ -1,7 +1,6 @@
 use std::num::NonZero;
 
 mod expr;
-mod term;
 
 fn main() {
   let allocator = expr::Allocator::new();
