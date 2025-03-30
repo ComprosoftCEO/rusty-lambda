@@ -6,9 +6,9 @@ pub type TermRef<'a> = &'a RefCell<Term<'a>>;
 #[derive(Debug, Clone)]
 pub enum Term<'a> {
   // De Bruijn index
-  Variable(u64),
+  Variable(usize),
   // \x.Body
-  Lambda(TermRef<'a>),
+  Lambda(TermRef<'a>, &'a str),
   // (f x)
   Eval(TermRef<'a>, TermRef<'a>),
 }
@@ -17,10 +17,10 @@ impl fmt::Display for Term<'_> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     use Term::*;
 
-    fn term_to_string(term: &Term<'_>, level: u64) -> String {
+    fn term_to_string(term: &Term<'_>, level: usize) -> String {
       match term {
         Variable(index) => index_to_variable_name(level - *index - 1),
-        Lambda(func) => format!(
+        Lambda(func, _) => format!(
           "(λ{}.{})",
           index_to_variable_name(level),
           term_to_string(&func.borrow(), level + 1)
@@ -37,7 +37,7 @@ impl fmt::Display for Term<'_> {
   }
 }
 
-fn index_to_variable_name(mut input: u64) -> String {
+fn index_to_variable_name(mut input: usize) -> String {
   static ALL_VARIABLES: &[char] = &[
     'x', 'y', 'z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
     'u', 'v', 'w',
@@ -45,9 +45,9 @@ fn index_to_variable_name(mut input: u64) -> String {
   const NUM_VARIABLES: usize = ALL_VARIABLES.len();
 
   let mut result = String::new();
-  while (input as usize) > NUM_VARIABLES {
-    result.push(ALL_VARIABLES[(input as usize) % NUM_VARIABLES]);
-    input /= NUM_VARIABLES as u64;
+  while input > NUM_VARIABLES {
+    result.push(ALL_VARIABLES[input % NUM_VARIABLES]);
+    input /= NUM_VARIABLES;
   }
 
   result.chars().rev().collect()

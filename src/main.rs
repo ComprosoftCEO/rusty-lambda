@@ -1,5 +1,6 @@
+mod expr;
 mod term;
 
 fn main() {
-  println!("Hello, world!");
+  println!("Hello, world! {}", size_of::<term::Term>());
 }
