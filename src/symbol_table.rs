@@ -21,8 +21,8 @@ where
 
   globals: &'assign mut HashMap<&'assign str, ExprRef<'assign>>,
   numbers: &'assign mut Vec<ExprRef<'assign>>,
-  assign_scopes: HashMap<&'assign str, u64>,
-  eval_scopes: HashMap<&'eval str, u64>,
+  assign_scopes: Vec<&'assign str>,
+  eval_scopes: Vec<&'eval str>,
 
   messages: CompilerMessages,
 }
@@ -39,8 +39,8 @@ impl<'assign, 'eval> SymbolTable<'assign, 'eval> {
       eval_allocator,
       globals,
       numbers,
-      assign_scopes: HashMap::new(),
-      eval_scopes: HashMap::new(),
+      assign_scopes: Vec::new(),
+      eval_scopes: Vec::new(),
       messages: CompilerMessages::new(),
     }
   }
@@ -85,7 +85,17 @@ impl<'assign, 'eval> SymbolTable<'assign, 'eval> {
   }
 
   pub fn build_assign_term(&mut self, name: &'assign str, offset: Offset) -> ExprRef<'assign> {
-    if let Some(de_bruijn_index) = self.assign_scopes.get(name).cloned() {
+    // O(n) search for the last time a term was used
+    // (We can probably find a more efficient way to do this...)
+    let found_index = self
+      .assign_scopes
+      .iter()
+      .rev()
+      .zip(1u64..)
+      .filter_map(|(n, index)| (*n == name).then_some(index))
+      .next();
+
+    if let Some(de_bruijn_index) = found_index {
       // Parent scopes have the highest priority
       self
         .assign_allocator
@@ -103,7 +113,7 @@ impl<'assign, 'eval> SymbolTable<'assign, 'eval> {
 
   pub fn start_assign_lambda(&mut self, name: &'assign str, offset: Offset) {
     // Show warnings (but not errors) about shadowed variables
-    if self.assign_scopes.contains_key(name) {
+    if self.assign_scopes.contains(&name) {
       self.messages.warning(
         format!("parameter {name} shadows outer parameter of the same name"),
         Some(offset),
@@ -115,16 +125,12 @@ impl<'assign, 'eval> SymbolTable<'assign, 'eval> {
       );
     }
 
-    self.assign_scopes.entry(name).and_modify(|c| *c += 1).or_insert(1);
+    self.assign_scopes.push(name);
   }
 
   pub fn build_assign_lambda(&mut self, names: Vec<&'assign str>, body: ExprRef<'assign>) -> ExprRef<'assign> {
     names.into_iter().rev().fold(body, |body, name| {
-      let new_count = self.assign_scopes.entry(name).and_modify(|c| *c -= 1).or_default();
-      if *new_count == 0 {
-        self.assign_scopes.remove(name);
-      }
-
+      self.assign_scopes.pop();
       self.assign_allocator.new_lambda(name, body)
     })
   }
@@ -170,7 +176,17 @@ impl<'assign, 'eval> SymbolTable<'assign, 'eval> {
   // ====================================
 
   pub fn build_eval_term(&mut self, name: &'assign str, offset: Offset) -> ExprRef<'eval> {
-    if let Some(de_bruijn_index) = self.eval_scopes.get(name).cloned() {
+    // O(n) search for the last time a term was used
+    // (We can probably find a more efficient way to do this...)
+    let found_index = self
+      .eval_scopes
+      .iter()
+      .rev()
+      .zip(1u64..)
+      .filter_map(|(n, index)| (*n == name).then_some(index))
+      .next();
+
+    if let Some(de_bruijn_index) = found_index {
       // Parent scopes have the highest priority
       self
         .eval_allocator
@@ -188,7 +204,7 @@ impl<'assign, 'eval> SymbolTable<'assign, 'eval> {
 
   pub fn start_eval_lambda(&mut self, name: &'assign str, offset: Offset) {
     // Show warnings (but not errors) about shadowed variables
-    if self.eval_scopes.contains_key(name) {
+    if self.eval_scopes.contains(&name) {
       self.messages.warning(
         format!("parameter {name} shadows outer parameter of the same name"),
         Some(offset),
@@ -200,16 +216,12 @@ impl<'assign, 'eval> SymbolTable<'assign, 'eval> {
       );
     }
 
-    self.eval_scopes.entry(name).and_modify(|c| *c += 1).or_insert(1);
+    self.eval_scopes.push(name);
   }
 
   pub fn build_eval_lambda(&mut self, names: Vec<&'assign str>, body: ExprRef<'eval>) -> ExprRef<'eval> {
     names.into_iter().rev().fold(body, |body, name| {
-      let new_count = self.eval_scopes.entry(name).and_modify(|c| *c -= 1).or_default();
-      if *new_count == 0 {
-        self.eval_scopes.remove(name);
-      }
-
+      self.eval_scopes.pop();
       self.eval_allocator.new_lambda(name, body)
     })
   }
