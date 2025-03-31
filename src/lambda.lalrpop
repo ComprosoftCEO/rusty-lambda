@@ -13,8 +13,8 @@ match {
   _
 }
 
-pub Program: () = {
-  Statement* => { () },
+pub Program: Vec<ExprRef<'eval>> = {
+  <s:Statement*> => s.into_iter().filter_map(|x| x).collect(),
 }
 
 pub Statement: Option<ExprRef<'eval>> = {
@@ -23,12 +23,14 @@ pub Statement: Option<ExprRef<'eval>> = {
     None
   },
   <e:EvalExpression> => Some(e),
+
+  ! => { sym.parse_error(<>); None },
 }
 
 AssignExpression: ExprRef<'assign> = {
   "(" <AssignExpression> ")",
   <o:@L> <t:Identifier> => sym.build_assign_term(t, o.into()),
-  "\\" <is:AssignLambdaIdentifier+> "." <e:AssignExpression> => sym.build_assign_lambda(is, e),
+  Lambda <is:AssignLambdaIdentifier+> "." <e:AssignExpression> => sym.build_assign_lambda(is, e),
   "(" <l:AssignExpression> <rs:AssignExpression+> ")" => sym.build_assign_eval(l, rs),
   // Number => { () },
 }
@@ -43,7 +45,7 @@ AssignLambdaIdentifier: &'input str = {
 EvalExpression: ExprRef<'eval> = {
   "(" <EvalExpression> ")",
   <o:@L> <t:Identifier> => sym.build_eval_term(t, o.into()),
-  "\\" <is:EvalLambdaIdentifier+> "." <e:EvalExpression> => sym.build_eval_lambda(is, e),
+  Lambda <is:EvalLambdaIdentifier+> "." <e:EvalExpression> => sym.build_eval_lambda(is, e),
   "(" <l:EvalExpression> <rs:EvalExpression+> ")" => sym.build_eval_eval(l, rs),
   // Number => { () },
 }
@@ -55,58 +57,14 @@ EvalLambdaIdentifier: &'input str = {
   },
 }
 
+Lambda = { "λ", "\\" }
+
 // Any unicode character except semicolon ; which is used for comments
 Identifier: &'input str = {
-  r"[!-/:<-~\xA0-\u{10FFFF}&&\S][!-:<-~\xA0-\u{10FFFF}&&\S]*",
+  r"[a-zA-Z\xA0-\u{10FFFF}&&\S][a-zA-Z0-9\xA0-\u{10FFFF}&&\S]*",
 }
 
 // Sequence of digits with possible underscores
 Number: u64 = {
   r"[0-9][0-9_]*" => parse_integer_literal::<u64>(<>).expect("invalid integer"),
-}
-
-// ===========================
-//       Template Types
-// ===========================
-CommaStar<T>: Vec<T> = DelimStar<T, ",">;
-CommaPlus<T>: Vec<T> = DelimPlus<T, ",">;
-
-// Every line must end with a semicolon
-SemiLinesStar<T>: Vec<T> = <(<T> ";")*>;
-
-// Trailing not allowed
-CommaPlusNoTrailing<T>: Vec<T> = DelimPlusNoTrailing<T, ",">;
-
-DelimStar<T, D>: Vec<T> = {
-  <v:(<T> D)*> <e:T?> => {
-    let mut v = v;
-    if let Some(e) = e { v.push(e); }
-    v
-  },
-};
-
-DelimPlus<T, D>: Vec<T> = {
-  <v:(<T> D)*> <e:T> <c:(",")?> => {
-    let mut v = v;
-    v.push(e);
-    v
-  },
-}
-
-DelimStarNoTrailing<T, D>: Vec<T> = {
-  () => vec![],
-  <e:T> => vec![e],
-  <v:(<T> D)*> <e:T> => {
-    let mut v = v;
-    if let Some(e) = e { v.push(e); }
-    v
-  },
-}
-
-DelimPlusNoTrailing<T, D>: Vec<T> = {
-  <v:(<T> D)*> <e:T> => {
-    let mut v = v;
-    v.push(e);
-    v
-  },
 }

@@ -11,6 +11,7 @@ crossterm = "0.28.1"
 itertools = "0.14.0"
 lalrpop-util = { version = "0.22.1", features = ["lexer", "unicode"] }
 num-traits = "0.2.19"
+rustyline = "15.0.0"
 typed-arena = "2.0.2"
 
 [build-dependencies]

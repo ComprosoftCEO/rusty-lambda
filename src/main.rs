@@ -7,6 +7,8 @@ pub mod symbol_table;
 
 lalrpop_mod!(pub lambda);
 
+pub static PRELUDE: &str = include_str!("prelude.txt");
+
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Opt {

@@ -54,6 +54,10 @@ impl<'assign, 'eval> SymbolTable<'assign, 'eval> {
     self.messages.messages.iter().for_each(CompilerMessage::print);
   }
 
+  pub fn parse_error(&mut self, parse_error: ErrorRecovery<usize, Token<'assign>, &'static str>) {
+    self.messages.parse_error(parse_error);
+  }
+
   /// Figure out the line numbers before attempting to compile a program
   pub fn set_line_numbers(&mut self, full_program: &str) {
     self.messages.set_offset_map(

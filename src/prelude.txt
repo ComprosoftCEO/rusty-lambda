@@ -1,0 +1,12 @@
+; Boolean
+true = \x y.x
+false = \x y.y
+
+not = \x.(x false true)
+and = \x y.(x y false)
+or  = \x y.(x true y)
+if  = \p l r.(p l r)
+
+; Numbers
+succ = \n.\f x.((n f) (f x))
+add  = \n m.(n succ m)
