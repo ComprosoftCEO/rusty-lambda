@@ -45,6 +45,7 @@ impl RunArgs {
       return Ok(());
     }
 
+    let mut last_line = String::new();
     let mut editor = DefaultEditor::new()?;
     loop {
       let line = editor.readline("> ")?;
@@ -58,6 +59,12 @@ impl RunArgs {
         Ok(None) => {},
         Ok(Some(result)) => println!("{result}"),
         Err(e) => println!("{e}"),
+      }
+
+      let line = line.clone();
+      if line != last_line {
+        editor.add_history_entry(&line).ok();
+        last_line = line;
       }
     }
   }
