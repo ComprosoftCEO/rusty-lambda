@@ -2,6 +2,7 @@ use lalrpop_util::lalrpop_mod;
 use std::num::NonZero;
 
 pub mod expr;
+pub mod symbol_table;
 
 lalrpop_mod!(pub lambda);
 

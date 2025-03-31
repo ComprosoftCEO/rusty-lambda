@@ -1,5 +1,11 @@
+use crate::symbol_table::*;
+use crate::expr::*;
+
 #[LALR]
-grammar();
+grammar<'assign, 'eval>(sym: &mut SymbolTable<'assign, 'eval>)
+where
+  'input: 'assign,
+  'assign: 'eval;
 
 match {
   r"\s*" => { },               // Skip normal whitespace
@@ -11,17 +17,42 @@ pub Program: () = {
   Statement* => { () },
 }
 
-pub Statement: () = {
-  <i:Identifier> "=" <e:Expression> => { () },
-  <e:Expression> => { () },
+pub Statement: Option<ExprRef<'eval>> = {
+  <o:@L> <i:Identifier> "=" <e:AssignExpression> => { 
+    sym.declare_global(i, e, o.into());
+    None
+  },
+  <e:EvalExpression> => Some(e),
 }
 
-Expression: () = {
-  "(" <e:Expression> ")" => { () },
-  Identifier => { () },
-  "\\" <is:Identifier+> "." <e:Expression> => { () },
-  "(" <l:Expression> <rs:Expression+> ")" => { () },
-  Number => { () },
+AssignExpression: ExprRef<'assign> = {
+  "(" <AssignExpression> ")",
+  <o:@L> <t:Identifier> => sym.build_assign_term(t, o.into()),
+  "\\" <is:AssignLambdaIdentifier+> "." <e:AssignExpression> => sym.build_assign_lambda(is, e),
+  "(" <l:AssignExpression> <rs:AssignExpression+> ")" => sym.build_assign_eval(l, rs),
+  // Number => { () },
+}
+
+AssignLambdaIdentifier: &'input str = {
+  <o:@L> <i:Identifier> => {
+    sym.start_assign_lambda(i, o.into());
+    i
+  },
+}
+
+EvalExpression: ExprRef<'eval> = {
+  "(" <EvalExpression> ")",
+  <o:@L> <t:Identifier> => sym.build_eval_term(t, o.into()),
+  "\\" <is:EvalLambdaIdentifier+> "." <e:EvalExpression> => sym.build_eval_lambda(is, e),
+  "(" <l:EvalExpression> <rs:EvalExpression+> ")" => sym.build_eval_eval(l, rs),
+  // Number => { () },
+}
+
+EvalLambdaIdentifier: &'input str = {
+  <o:@L> <i:Identifier> => {
+    sym.start_eval_lambda(i, o.into());
+    i
+  },
 }
 
 // Any unicode character except semicolon ; which is used for comments
@@ -30,8 +61,8 @@ Identifier: &'input str = {
 }
 
 // Sequence of digits with possible underscores
-Number: () = {
-  r"[0-9][0-9_]*" => { () }
+Number: u64 = {
+  r"[0-9][0-9_]*" => parse_integer_literal::<u64>(<>).expect("invalid integer"),
 }
 
 // ===========================

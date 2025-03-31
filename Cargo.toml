@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+crossterm = "0.28.1"
+itertools = "0.14.0"
 lalrpop-util = { version = "0.22.1", features = ["lexer", "unicode"] }
+num-traits = "0.2.19"
 typed-arena = "2.0.2"
 
 [build-dependencies]
