@@ -22,20 +22,20 @@ const POINTER_MASK: u64 = 0x0000_ffff_ffff_ffff;
 /// - Term 1 to 65535 = `xxxx 0000 0000 0000`
 /// - Normal Pointer  = `0000 xxxx xxxx xxxx`
 #[derive(Debug, Clone, Copy)]
-pub struct ExprRef<'a>(u64, PhantomData<&'a CompactExpr>);
+pub struct ExprRef<'a>(NonZero<u64>, PhantomData<&'a CompactExpr>);
 
 #[allow(unused)]
 impl<'a> ExprRef<'a> {
   #[inline]
   pub fn visit<V: ExprVisitor<'a>>(self, visitor: &mut V) -> <V as ExprVisitor<'a>>::Output {
-    if self.0 & POINTER_MASK == 0 {
+    if self.0.get() & POINTER_MASK == 0 {
       // Safety: we only construct an ExprRef from a non-zero length
-      let de_bruijn_index = unsafe { NonZero::new_unchecked(self.0 >> LENGTH_SHIFT) };
+      let de_bruijn_index = unsafe { NonZero::new_unchecked(self.0.get() >> LENGTH_SHIFT) };
       visitor.visit_term(de_bruijn_index)
     } else {
       // Safety: these are only constructed from valid references and can't
       // outlive the lifetime of the arena allocator.
-      let compact_expr_ref = unsafe { &*((self.0 & POINTER_MASK) as *const CompactExpr) };
+      let compact_expr_ref = unsafe { &*((self.0.get() & POINTER_MASK) as *const CompactExpr) };
       compact_expr_ref.visit(visitor)
     }
   }
@@ -145,15 +145,15 @@ impl CompactExpr {
     debug_assert!(ptr & LENGTH_MASK == 0, "Name has pointer high bits set to 0");
 
     Self {
-      left: body.0,
+      left: body.0.get(),
       right: ((param_name.len() as u64) << LENGTH_SHIFT) | ptr,
     }
   }
 
   pub fn new_eval<'a>(left: ExprRef<'a>, right: ExprRef<'a>) -> Self {
     Self {
-      left: left.0,
-      right: right.0,
+      left: left.0.get(),
+      right: right.0.get(),
     }
   }
 
@@ -163,9 +163,11 @@ impl CompactExpr {
       return visitor.visit_term(de_bruijn_index);
     }
 
-    let left = ExprRef(self.left, PhantomData);
+    // Safety: we check above that it's not 0
+    let left = ExprRef(unsafe { NonZero::new_unchecked(self.left) }, PhantomData);
     if self.right & POINTER_MASK == 0 || self.right & LENGTH_MASK == 0 {
-      let right = ExprRef(self.right, PhantomData);
+      // Safety: we ensure you can't make a 0 reference
+      let right = ExprRef(unsafe { NonZero::new_unchecked(self.right) }, PhantomData);
       return visitor.visit_eval(left, right);
     }
 
@@ -192,7 +194,9 @@ impl Allocator {
   pub fn new_term<'a>(&'a self, de_bruijn_index: NonZero<u64>) -> ExprRef<'a> {
     // Special case: short indexes have a very compact representation
     if de_bruijn_index.get() < MAX_LENGTH {
-      return ExprRef(de_bruijn_index.get() << 48, PhantomData);
+      // Safety: len > 0 and len <= 0xffff
+      let len = unsafe { NonZero::new_unchecked(de_bruijn_index.get() << 48) };
+      return ExprRef(len, PhantomData);
     }
 
     // Otherwise, do a real allocation
@@ -200,7 +204,8 @@ impl Allocator {
     let term_ptr = term as *const CompactExpr as u64;
     debug_assert!(term_ptr & LENGTH_MASK == 0, "Term pointer has high bits set to 0");
 
-    ExprRef(term_ptr, PhantomData)
+    // Safety: newly allocated pointer is never 0
+    ExprRef(unsafe { NonZero::new_unchecked(term_ptr) }, PhantomData)
   }
 
   /// The parameter name must be 65,535 characters or less
@@ -209,7 +214,8 @@ impl Allocator {
     let lambda_ptr = lambda as *const CompactExpr as u64;
     debug_assert!(lambda_ptr & LENGTH_MASK == 0, "Lambda pointer has high bits set to 0");
 
-    ExprRef(lambda_ptr, PhantomData)
+    // Safety: newly allocated pointer is never 0
+    ExprRef(unsafe { NonZero::new_unchecked(lambda_ptr) }, PhantomData)
   }
 
   pub fn new_eval<'a>(&'a self, left: ExprRef<'a>, right: ExprRef<'a>) -> ExprRef<'a> {
@@ -217,6 +223,7 @@ impl Allocator {
     let eval_ptr = eval as *const CompactExpr as u64;
     debug_assert!(eval_ptr & LENGTH_MASK == 0, "Eval pointer has high bits set to 0");
 
-    ExprRef(eval_ptr, PhantomData)
+    // Safety: newly allocated pointer is never 0
+    ExprRef(unsafe { NonZero::new_unchecked(eval_ptr) }, PhantomData)
   }
 }
