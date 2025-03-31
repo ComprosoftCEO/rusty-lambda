@@ -2,7 +2,7 @@ use crate::symbol_table::*;
 use crate::expr::*;
 
 #[LALR]
-grammar<'assign, 'eval>(sym: &mut SymbolTable<'assign, 'eval>)
+grammar<'assign, 'eval, 'globals, 'numbers>(sym: &mut SymbolTable<'assign, 'eval, 'globals, 'numbers>)
 where
   'input: 'assign,
   'assign: 'eval;

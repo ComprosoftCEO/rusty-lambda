@@ -12,27 +12,27 @@ use std::{
 
 /// - Assigning an expression keeps results allocated permanently.
 /// - Evaluating an expression only computes results then clears allocations.
-pub struct SymbolTable<'assign, 'eval>
+pub struct SymbolTable<'assign, 'eval, 'globals, 'numbers>
 where
   'assign: 'eval,
 {
   assign_allocator: &'assign Allocator,
   eval_allocator: &'eval Allocator,
 
-  globals: &'assign mut HashMap<&'assign str, ExprRef<'assign>>,
-  numbers: &'assign mut Vec<ExprRef<'assign>>,
+  globals: &'globals mut HashMap<&'assign str, ExprRef<'assign>>,
+  numbers: &'numbers mut Vec<ExprRef<'assign>>,
   assign_scopes: Vec<&'assign str>,
   eval_scopes: Vec<&'eval str>,
 
   messages: CompilerMessages,
 }
 
-impl<'assign, 'eval> SymbolTable<'assign, 'eval> {
+impl<'assign, 'eval, 'globals, 'numbers> SymbolTable<'assign, 'eval, 'globals, 'numbers> {
   pub fn new(
     assign_allocator: &'assign Allocator,
     eval_allocator: &'eval Allocator,
-    globals: &'assign mut HashMap<&'assign str, ExprRef<'assign>>,
-    numbers: &'assign mut Vec<ExprRef<'assign>>,
+    globals: &'globals mut HashMap<&'assign str, ExprRef<'assign>>,
+    numbers: &'numbers mut Vec<ExprRef<'assign>>,
   ) -> Self {
     Self {
       assign_allocator,

@@ -30,15 +30,10 @@ impl<'s> Executor<'s> {
     let name_str = name.map(|n| format!("{n}: ")).unwrap_or_default();
 
     let eval_allocator = Allocator::new();
-
-    // Safety: the compiler isn't smart enough to know that this borrow doesn't need to outlive the function
     let mut globals = self.globals.borrow_mut();
-    let globals_ptr: &'s mut HashMap<&'s str, ExprRef<'s>> = unsafe { &mut *&raw mut globals };
-
     let mut numbers = self.numbers.borrow_mut();
-    let numbers_ptr: &'s mut Vec<ExprRef<'s>> = unsafe { &mut *&raw mut numbers };
 
-    let mut symbol_table = SymbolTable::new(&self.assign_allocator, &eval_allocator, globals_ptr, numbers_ptr);
+    let mut symbol_table = SymbolTable::new(&self.assign_allocator, &eval_allocator, &mut globals, &mut numbers);
     symbol_table.set_line_numbers(code);
 
     self
@@ -66,14 +61,10 @@ impl<'s> Executor<'s> {
   {
     let name_str = name.map(|n| format!("{n}: ")).unwrap_or_default();
 
-    // Safety: the compiler isn't smart enough to know that this borrow doesn't need to outlive the function
     let mut globals = self.globals.borrow_mut();
-    let globals_ptr: &'s mut HashMap<&'s str, ExprRef<'s>> = unsafe { &mut *&raw mut globals };
-
     let mut numbers = self.numbers.borrow_mut();
-    let numbers_ptr: &'s mut Vec<ExprRef<'s>> = unsafe { &mut *&raw mut numbers };
 
-    let mut symbol_table = SymbolTable::new(&self.assign_allocator, eval_allocator, globals_ptr, numbers_ptr);
+    let mut symbol_table = SymbolTable::new(&self.assign_allocator, eval_allocator, &mut globals, &mut numbers);
     let results = self
       .program_parser
       .parse(&mut symbol_table, code)
@@ -98,14 +89,10 @@ impl<'s> Executor<'s> {
   where
     's: 'eval,
   {
-    // Safety: the compiler isn't smart enough to know that this borrow doesn't need to outlive the function
     let mut globals = self.globals.borrow_mut();
-    let globals_ptr: &'s mut HashMap<&'s str, ExprRef<'s>> = unsafe { &mut *&raw mut globals };
-
     let mut numbers = self.numbers.borrow_mut();
-    let numbers_ptr: &'s mut Vec<ExprRef<'s>> = unsafe { &mut *&raw mut numbers };
 
-    let mut symbol_table = SymbolTable::new(&self.assign_allocator, eval_allocator, globals_ptr, numbers_ptr);
+    let mut symbol_table = SymbolTable::new(&self.assign_allocator, eval_allocator, &mut globals, &mut numbers);
     let result = self
       .statement_parser
       .parse(&mut symbol_table, code)
