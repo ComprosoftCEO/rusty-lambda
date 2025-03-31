@@ -80,11 +80,18 @@ impl fmt::Display for ExprRef<'_> {
         body.visit(self)?;
         self.lambda_parameters.pop();
 
-        self.shadowed_variables.entry(parameter_name).and_modify(|c| {
-          if *c > 0 {
-            *c -= 1
-          }
-        });
+        let result = self
+          .shadowed_variables
+          .entry(parameter_name)
+          .and_modify(|c| {
+            if *c > 0 {
+              *c -= 1
+            }
+          })
+          .or_default();
+        if *result == 0 {
+          self.shadowed_variables.remove(parameter_name);
+        }
 
         Ok(())
       }
