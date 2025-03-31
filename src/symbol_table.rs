@@ -20,6 +20,7 @@ where
   eval_allocator: &'eval Allocator,
 
   globals: &'assign mut HashMap<&'assign str, ExprRef<'assign>>,
+  numbers: &'assign mut Vec<ExprRef<'assign>>,
   assign_scopes: HashMap<&'assign str, u64>,
   eval_scopes: HashMap<&'eval str, u64>,
 
@@ -31,11 +32,13 @@ impl<'assign, 'eval> SymbolTable<'assign, 'eval> {
     assign_allocator: &'assign Allocator,
     eval_allocator: &'eval Allocator,
     globals: &'assign mut HashMap<&'assign str, ExprRef<'assign>>,
+    numbers: &'assign mut Vec<ExprRef<'assign>>,
   ) -> Self {
     Self {
       assign_allocator,
       eval_allocator,
       globals,
+      numbers,
       assign_scopes: HashMap::new(),
       eval_scopes: HashMap::new(),
       messages: CompilerMessages::new(),
@@ -130,6 +133,36 @@ impl<'assign, 'eval> SymbolTable<'assign, 'eval> {
     params
       .into_iter()
       .fold(left, |left, right| self.assign_allocator.new_eval(left, right))
+  }
+
+  pub fn build_number(&mut self, number: u64) -> ExprRef<'assign> {
+    // 0 should always exist in the list
+    if self.numbers.is_empty() {
+      self
+        .numbers
+        .push(self.assign_allocator.new_term(unsafe { NonZero::new_unchecked(1) }));
+    }
+
+    let mut lambda_number = self
+      .numbers
+      .get(number as usize)
+      .or_else(|| self.numbers.last())
+      .cloned()
+      .unwrap();
+
+    // Recursively build out the number (f (f (f x)))
+    while (self.numbers.len() as u64) <= number {
+      lambda_number = self.assign_allocator.new_eval(
+        self.assign_allocator.new_term(unsafe { NonZero::new_unchecked(2) }),
+        lambda_number,
+      );
+      self.numbers.push(lambda_number);
+    }
+
+    // Then wrap it in a lambda expression (\f.\x.(f (f (f x))))
+    self
+      .assign_allocator
+      .new_lambda("f", self.assign_allocator.new_lambda("x", lambda_number))
   }
 
   // ====================================
