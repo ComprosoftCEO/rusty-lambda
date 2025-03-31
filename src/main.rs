@@ -1,6 +1,9 @@
+use lalrpop_util::lalrpop_mod;
 use std::num::NonZero;
 
-mod expr;
+pub mod expr;
+
+lalrpop_mod!(pub lambda);
 
 fn main() {
   let allocator = expr::Allocator::new();

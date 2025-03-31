@@ -1,0 +1,81 @@
+#[LALR]
+grammar();
+
+match {
+  r"\s*" => { },               // Skip normal whitespace
+  r";[^\n\r]*[\n\r]*" => { },  // Skip `; comments`
+  _
+}
+
+pub Program: () = {
+  Statement* => { () },
+}
+
+pub Statement: () = {
+  <i:Identifier> "=" <e:Expression> => { () },
+  <e:Expression> => { () },
+}
+
+Expression: () = {
+  "(" <e:Expression> ")" => { () },
+  Identifier => { () },
+  "\\" <is:Identifier+> "." <e:Expression> => { () },
+  "(" <l:Expression> <rs:Expression+> ")" => { () },
+  Number => { () },
+}
+
+// Any unicode character except semicolon ; which is used for comments
+Identifier: &'input str = {
+  r"[!-/:<-~\xA0-\u{10FFFF}&&\S][!-:<-~\xA0-\u{10FFFF}&&\S]*",
+}
+
+// Sequence of digits with possible underscores
+Number: () = {
+  r"[0-9][0-9_]*" => { () }
+}
+
+// ===========================
+//       Template Types
+// ===========================
+CommaStar<T>: Vec<T> = DelimStar<T, ",">;
+CommaPlus<T>: Vec<T> = DelimPlus<T, ",">;
+
+// Every line must end with a semicolon
+SemiLinesStar<T>: Vec<T> = <(<T> ";")*>;
+
+// Trailing not allowed
+CommaPlusNoTrailing<T>: Vec<T> = DelimPlusNoTrailing<T, ",">;
+
+DelimStar<T, D>: Vec<T> = {
+  <v:(<T> D)*> <e:T?> => {
+    let mut v = v;
+    if let Some(e) = e { v.push(e); }
+    v
+  },
+};
+
+DelimPlus<T, D>: Vec<T> = {
+  <v:(<T> D)*> <e:T> <c:(",")?> => {
+    let mut v = v;
+    v.push(e);
+    v
+  },
+}
+
+DelimStarNoTrailing<T, D>: Vec<T> = {
+  () => vec![],
+  <e:T> => vec![e],
+  <v:(<T> D)*> <e:T> => {
+    let mut v = v;
+    if let Some(e) = e { v.push(e); }
+    v
+  },
+}
+
+DelimPlusNoTrailing<T, D>: Vec<T> = {
+  <v:(<T> D)*> <e:T> => {
+    let mut v = v;
+    v.push(e);
+    v
+  },
+}

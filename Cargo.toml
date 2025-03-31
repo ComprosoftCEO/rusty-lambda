@@ -4,4 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+lalrpop-util = { version = "0.22.1", features = ["lexer", "unicode"] }
 typed-arena = "2.0.2"
+
+[build-dependencies]
+lalrpop =  "0.22.1"
