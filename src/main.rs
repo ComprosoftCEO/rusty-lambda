@@ -1,24 +1,36 @@
+use clap::{Parser, Subcommand};
 use lalrpop_util::lalrpop_mod;
-use std::num::NonZero;
 
+pub mod command;
 pub mod expr;
 pub mod symbol_table;
 
 lalrpop_mod!(pub lambda);
 
-fn main() {
-  let allocator = expr::Allocator::new();
+#[derive(Parser)]
+#[clap(author, version, about, long_about = None)]
+struct Opt {
+  #[clap(flatten)]
+  run_args: command::RunArgs,
 
-  let lambda = allocator.new_lambda(
-    "x",
-    allocator.new_lambda(
-      "x",
-      allocator.new_eval(
-        allocator.new_term(NonZero::new(1).unwrap()),
-        allocator.new_term(NonZero::new(2).unwrap()),
-      ),
-    ),
-  );
+  #[clap(subcommand)]
+  subcommand: Option<SubCommand>,
+}
 
-  println!("{}", lambda)
+#[derive(Subcommand)]
+enum SubCommand {
+  Encode(command::EncodeArgs),
+}
+
+fn main() -> command::CommandResult {
+  let opt = Opt::parse();
+  match opt.subcommand {
+    None => opt.run_args.execute(),
+    Some(command) => {
+      use SubCommand::*;
+      match command {
+        Encode(args) => args.execute(),
+      }
+    },
+  }
 }

@@ -2,8 +2,11 @@
 name = "lambda"
 version = "0.1.0"
 edition = "2024"
+description = "Lambda Calculus tools"
+authors = ["Bryan McClain <bamcclain10@gmail.com>"]
 
 [dependencies]
+clap = { version = "4.5.34", features = ["derive"] }
 crossterm = "0.28.1"
 itertools = "0.14.0"
 lalrpop-util = { version = "0.22.1", features = ["lexer", "unicode"] }
