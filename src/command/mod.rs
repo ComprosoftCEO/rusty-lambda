@@ -1,9 +1,11 @@
 use std::error::Error;
 
+mod decode;
 mod encode;
 pub(self) mod executor;
 mod run;
 
+pub use decode::DecodeArgs;
 pub use encode::EncodeArgs;
 pub use run::RunArgs;
 

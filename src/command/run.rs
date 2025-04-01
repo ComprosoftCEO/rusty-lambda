@@ -35,7 +35,7 @@ impl RunArgs {
 
       let results = executor.load_and_eval_code(&eval_allocator, file_data.as_str(), file.to_str())?;
       for expr in results {
-        println!("{expr}");
+        println!("{expr:#}");
       }
     }
 
@@ -57,7 +57,7 @@ impl RunArgs {
       let eval_allocator = Allocator::new();
       match executor.load_and_eval_statement(&eval_allocator, line.as_str()) {
         Ok(None) => {},
-        Ok(Some(result)) => println!("{result}"),
+        Ok(Some(result)) => println!("{result:#}"),
         Err(e) => println!("{e}"),
       }
 

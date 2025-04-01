@@ -97,7 +97,12 @@ impl fmt::Display for ExprRef<'_> {
           .and_modify(|c| *c += 1)
           .or_insert(0);
 
-        write!(self.f, "λ{}", parameter_name)?;
+        if self.f.alternate() {
+          write!(self.f, "λ{}", parameter_name)?;
+        } else {
+          write!(self.f, "\\{}", parameter_name)?;
+        }
+
         for _ in 0..*count {
           write!(self.f, "′")?;
         }

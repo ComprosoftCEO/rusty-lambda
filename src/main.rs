@@ -22,6 +22,7 @@ struct Opt {
 #[derive(Subcommand)]
 enum SubCommand {
   Encode(command::EncodeArgs),
+  Decode(command::DecodeArgs),
 }
 
 fn main() -> command::CommandResult {
@@ -32,6 +33,7 @@ fn main() -> command::CommandResult {
       use SubCommand::*;
       match command {
         Encode(args) => args.execute(),
+        Decode(args) => args.execute(),
       }
     },
   }

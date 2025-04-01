@@ -1,4 +1,7 @@
-use clap::{Args, builder::ArgPredicate};
+use clap::{
+  Args,
+  builder::{ArgPredicate, NonEmptyStringValueParser},
+};
 use std::{fs, io::Write, num::NonZero, path::PathBuf};
 use typed_arena::Arena;
 
@@ -16,7 +19,7 @@ pub struct EncodeArgs {
   /// List of files to load
   files: Vec<PathBuf>,
 
-  /// Evaluate the term first before printing it
+  /// Evaluate the term first before encoding it
   #[clap(short, long)]
   evaluate: bool,
 
@@ -31,24 +34,31 @@ pub struct EncodeArgs {
   /// Character to output for a "0"
   #[clap(
     long,
+    value_parser = NonEmptyStringValueParser::new(),
     conflicts_with = "binary",
     default_value = "0",
-    default_value_if("zero_width", ArgPredicate::IsPresent, Some("\u{ffa0}"))
+    default_value_if("zero_width", ArgPredicate::Equals("true".into()), Some("\u{ffa0}"))
   )]
   zero: String,
 
   /// Character output for a "1"
   #[clap(
     long,
+    value_parser = NonEmptyStringValueParser::new(),
     conflicts_with = "binary",
     default_value = "1",
-    default_value_if("zero_width", ArgPredicate::IsPresent, Some("\u{3164}"))
+    default_value_if("zero_width", ArgPredicate::Equals("true".into()), Some("\u{3164}"))
   )]
   one: String,
 }
 
 impl EncodeArgs {
   pub fn execute(self) -> super::CommandResult {
+    // Sanity check
+    if self.zero == self.one {
+      return Err("--zero and --one must be different values".into());
+    }
+
     let text_data = Arena::new();
     let executor = Executor::new();
 
@@ -64,23 +74,27 @@ impl EncodeArgs {
       executor.load_code(file_data.as_str(), file.to_str())?;
     }
 
+    // Look up the term by name
     let mut expr = match executor.get_global(&self.term) {
       None => return Err(format!("unknown term {}", self.term).into()),
       Some(expr) => expr,
     };
 
+    // Possibly evaluate the expression
     let eval_allocator = Allocator::new();
     if self.evaluate {
       expr = executor.evaluate(&eval_allocator, expr);
     }
 
     if self.binary {
+      // Binary encode the expression
       let mut visitor = ByteVisitor::new();
       expr.visit(&mut visitor);
 
       let bytes = visitor.into_bytes();
       std::io::stdout().write_all(&bytes)?;
     } else {
+      // String encode the expression
       expr.visit(&mut PrintVisitor::new(&self.zero, &self.one));
       if !self.zero_width {
         println!("");
