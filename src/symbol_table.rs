@@ -54,7 +54,7 @@ impl<'assign, 'eval, 'globals, 'numbers> SymbolTable<'assign, 'eval, 'globals, '
   }
 
   pub fn print_messages(&self) {
-    self.messages.messages.iter().for_each(CompilerMessage::print);
+    self.messages.print_messages();
   }
 
   pub fn parse_error(&mut self, parse_error: ErrorRecovery<usize, Token<'assign>, &'static str>) {
@@ -239,7 +239,6 @@ struct CompilerMessages {
   offset_map: BTreeMap<usize, usize>, // Maps byte offset to line number
 }
 
-#[allow(unused)]
 impl CompilerMessages {
   pub fn new() -> Self {
     Self {

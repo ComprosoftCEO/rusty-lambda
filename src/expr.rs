@@ -30,7 +30,6 @@ pub enum UnpackedExpr<'a> {
   Eval { left: ExprRef<'a>, right: ExprRef<'a> },
 }
 
-#[allow(unused)]
 impl<'a> ExprRef<'a> {
   #[inline]
   pub fn visit<V: ExprVisitor<'a>>(self, visitor: &mut V) -> <V as ExprVisitor<'a>>::Output {
@@ -158,7 +157,6 @@ struct CompactExpr {
   right: u64,
 }
 
-#[allow(unused)]
 impl CompactExpr {
   pub fn new_term(de_bruijn_index: NonZero<u64>) -> Self {
     Self {
@@ -219,7 +217,6 @@ pub struct Allocator {
   arena: Arena<CompactExpr>,
 }
 
-#[allow(unused)]
 impl Allocator {
   pub fn new() -> Self {
     Self { arena: Arena::new() }

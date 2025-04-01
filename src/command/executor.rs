@@ -25,6 +25,11 @@ impl<'s> Executor<'s> {
     }
   }
 
+  #[inline]
+  pub fn get_global(&self, name: &str) -> Option<ExprRef<'s>> {
+    self.globals.borrow().get(name).cloned()
+  }
+
   /// Load a code file, but don't evaluate anything.
   /// Name is just a helpful string for error handling.
   pub fn load_code(&'s self, code: &'s str, name: Option<&str>) -> Result<(), Box<dyn Error>> {
@@ -107,6 +112,13 @@ impl<'s> Executor<'s> {
     }
 
     Ok(result.map(|result| result.visit(&mut Evaluator::new(eval_allocator))))
+  }
+
+  pub fn evaluate<'eval>(&self, eval_allocator: &'eval Allocator, expr: ExprRef<'eval>) -> ExprRef<'eval>
+  where
+    's: 'eval,
+  {
+    expr.visit(&mut Evaluator::new(eval_allocator))
   }
 }
 
