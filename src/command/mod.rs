@@ -2,7 +2,7 @@ use std::error::Error;
 
 mod decode;
 mod encode;
-pub(self) mod executor;
+mod executor;
 mod run;
 
 pub use decode::DecodeArgs;

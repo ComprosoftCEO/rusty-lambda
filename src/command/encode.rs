@@ -70,7 +70,7 @@ impl EncodeArgs {
 
     // Load, but don't evaluate the code files
     for file in self.files.iter() {
-      let file_data = text_data.alloc(fs::read_to_string(&file)?);
+      let file_data = text_data.alloc(fs::read_to_string(file)?);
       executor.load_code(file_data.as_str(), file.to_str())?;
     }
 
@@ -97,7 +97,7 @@ impl EncodeArgs {
       // String encode the expression
       expr.visit(&mut PrintVisitor::new(&self.zero, &self.one));
       if !self.zero_width {
-        println!("");
+        println!();
       }
     }
 
@@ -155,7 +155,7 @@ impl ByteVisitor {
 
   pub fn into_bytes(mut self) -> Vec<u8> {
     // Pad the remaining space with 0's
-    while self.bits.len() > 0 {
+    while !self.bits.is_empty() {
       self.push_bit(false);
     }
 

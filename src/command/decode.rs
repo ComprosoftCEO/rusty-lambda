@@ -98,7 +98,7 @@ impl DecodeArgs {
 
 #[inline]
 fn get_byte_iter(bytes: Vec<u8>) -> impl Iterator<Item = bool> {
-  bytes.into_iter().map(to_bits_iter).flatten()
+  bytes.into_iter().flat_map(to_bits_iter)
 }
 
 #[inline]

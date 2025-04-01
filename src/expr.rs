@@ -218,6 +218,7 @@ impl CompactExpr {
 }
 
 /// Handles allocation of Lambda expressions
+#[derive(Default)]
 pub struct Allocator {
   arena: Arena<CompactExpr>,
 }

@@ -108,7 +108,7 @@ impl<'s> Executor<'s> {
 
     symbol_table.print_messages();
     if symbol_table.has_errors() {
-      return Err(format!("failed to evaluate statement").into());
+      return Err("failed to evaluate statement".into());
     }
 
     Ok(result.map(|result| result.visit(&mut Evaluator::new(eval_allocator))))

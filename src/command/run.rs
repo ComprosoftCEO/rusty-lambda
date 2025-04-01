@@ -30,7 +30,7 @@ impl RunArgs {
 
     // Load and evaluate the code files
     for file in self.files.iter() {
-      let file_data = text_data.alloc(fs::read_to_string(&file)?);
+      let file_data = text_data.alloc(fs::read_to_string(file)?);
       let eval_allocator = Allocator::new();
 
       let results = executor.load_and_eval_code(&eval_allocator, file_data.as_str(), file.to_str())?;

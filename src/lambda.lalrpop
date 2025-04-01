@@ -14,7 +14,7 @@ match {
 }
 
 pub Program: Vec<ExprRef<'eval>> = {
-  <s:Statement*> => s.into_iter().filter_map(|x| x).collect(),
+  <s:Statement*> => s.into_iter().flatten().collect(),
 }
 
 pub Statement: Option<ExprRef<'eval>> = {
