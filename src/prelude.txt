@@ -7,11 +7,43 @@ and = \x y.(x y false)
 or  = \x y.(x true y)
 if  = \p l r.(p l r)
 
+! = not
+& = and
+| = or
+? = if
+
 ; Numbers
 succ = \n.\f x.((n f) (f x))
-add  = \n m.(n succ m)
-mul  = \n m.(n (add m) 0)
-pow  = \n m.(m (mul n) 1)
+pred = \n.\f x.(n (\g h.(h (g f))) (\u.x) (\u.u))
+
+++ = succ
+-- = pred
+
+add  = \m n.(n succ m)
+sub  = \m n.(n pred m)
+mul  = \m n.(n (add m) 0)
+pow  = \m n.(n (mul m) 1)
+
++  = add
+-  = sub
+*  = mul
+** = pow
+
+zero? = \f.(f (\t.false) true)
+leq?  = \m n.(zero? (sub m n))
+eq?   = \m n.(and (leq? m n) (leq? n m))
+neq?  = \m n.(not (eq? m n))
+gtr?  = \m n.(not (leq? m n))
+geq?  = \m n.(zero? (sub n m))
+lss?  = \m n.(not (geq? m n))
+
+== = eq?
+!= = neq?
+<> = neq?
+<  = lss?
+>  = gtr?
+<= = leq?
+>= = geq?
 
 ; Pairs
 pair  = \x y.\s.(s x y)
