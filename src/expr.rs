@@ -24,6 +24,12 @@ const POINTER_MASK: u64 = 0x0000_ffff_ffff_ffff;
 #[derive(Debug, Clone, Copy)]
 pub struct ExprRef<'a>(NonZero<u64>, PhantomData<&'a CompactExpr>);
 
+pub enum UnpackedExpr<'a> {
+  Term { de_bruijn_index: NonZero<u64> },
+  Lambda { parameter_name: &'a str, body: ExprRef<'a> },
+  Eval { left: ExprRef<'a>, right: ExprRef<'a> },
+}
+
 #[allow(unused)]
 impl<'a> ExprRef<'a> {
   #[inline]
@@ -38,6 +44,28 @@ impl<'a> ExprRef<'a> {
       let compact_expr_ref = unsafe { &*((self.0.get() & POINTER_MASK) as *const CompactExpr) };
       compact_expr_ref.visit(visitor)
     }
+  }
+
+  pub fn unpack(self) -> UnpackedExpr<'a> {
+    struct UnpackVisitor;
+
+    impl<'a> ExprVisitor<'a> for UnpackVisitor {
+      type Output = UnpackedExpr<'a>;
+
+      fn visit_term(&mut self, de_bruijn_index: NonZero<u64>) -> Self::Output {
+        UnpackedExpr::Term { de_bruijn_index }
+      }
+
+      fn visit_lambda(&mut self, body: ExprRef<'a>, parameter_name: &'a str) -> Self::Output {
+        UnpackedExpr::Lambda { parameter_name, body }
+      }
+
+      fn visit_eval(&mut self, left: ExprRef<'a>, right: ExprRef<'a>) -> Self::Output {
+        UnpackedExpr::Eval { left, right }
+      }
+    }
+
+    self.visit(&mut UnpackVisitor)
   }
 }
 
