@@ -47,6 +47,10 @@ pub struct DecodeArgs {
   /// Evaluate the term after decoding it
   #[clap(short, long)]
   evaluate: bool,
+
+  /// Print the reduction steps to stderr if --evaluate is set
+  #[clap(short, long, requires = "evaluate")]
+  steps: bool,
 }
 
 impl DecodeArgs {
@@ -86,7 +90,7 @@ impl DecodeArgs {
     // Possibly evaluate the expression
     if self.evaluate {
       let executor = Executor::new();
-      expr = executor.evaluate(&allocator, expr, false);
+      expr = executor.evaluate(&allocator, expr, self.steps);
     }
 
     // Print decoded expression

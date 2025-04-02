@@ -23,6 +23,10 @@ pub struct EncodeArgs {
   #[clap(short, long)]
   evaluate: bool,
 
+  /// Print the reduction steps to stderr if --evaluate is set
+  #[clap(short, long, requires = "evaluate")]
+  steps: bool,
+
   /// Output as raw bytes instead
   #[clap(short, long, group = "format")]
   binary: bool,
@@ -83,7 +87,7 @@ impl EncodeArgs {
     // Possibly evaluate the expression
     let eval_allocator = Allocator::new();
     if self.evaluate {
-      expr = executor.evaluate(&eval_allocator, expr, false);
+      expr = executor.evaluate(&eval_allocator, expr, self.steps);
     }
 
     if self.binary {
