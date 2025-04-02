@@ -21,7 +21,10 @@ const POINTER_MASK: u64 = 0x0000_ffff_ffff_ffff;
 ///
 /// - Term 1 to 65535 = `xxxx 0000 0000 0000`
 /// - Normal Pointer  = `0000 xxxx xxxx xxxx`
-#[derive(Debug, Clone, Copy)]
+///
+/// Two ExprRefs are considered equal if they point to the same object in memory,
+/// not necessarily that they are isomorphic to each other. (reference equality)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExprRef<'a>(NonZero<u64>, PhantomData<&'a CompactExpr>);
 
 pub enum UnpackedExpr<'a> {
@@ -80,11 +83,28 @@ impl fmt::Display for ExprRef<'_> {
       type Output = fmt::Result;
 
       fn visit_term(&mut self, de_bruijn_index: NonZero<u64>) -> Self::Output {
-        let term = self.lambda_parameters[self.lambda_parameters.len() - de_bruijn_index.get() as usize];
-        write!(self.f, "{}", term.0)?;
+        if self.f.sign_plus() {
+          write!(self.f, "{}", de_bruijn_index)?;
+        } else if self.f.sign_minus() {
+          write!(self.f, "-{}", de_bruijn_index)?;
+        } else {
+          // Read the tern name from the vector of parameters
+          let term = self
+            .lambda_parameters
+            .get(self.lambda_parameters.len() - de_bruijn_index.get() as usize);
 
-        for _ in 0..term.1 {
-          write!(self.f, "′")?;
+          match term {
+            Some(term) => {
+              write!(self.f, "{}", term.0)?;
+
+              // Shadowed parameters
+              for _ in 0..term.1 {
+                write!(self.f, "′")?;
+              }
+            },
+            // Default print the de Bruijn index to avoid a crash
+            None => write!(self.f, "{}", de_bruijn_index)?,
+          }
         }
 
         Ok(())

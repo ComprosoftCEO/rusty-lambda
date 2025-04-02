@@ -84,7 +84,7 @@ impl<'s> Executor<'s> {
     Ok(
       results
         .into_iter()
-        .map(|result| result.visit(&mut Evaluator::new(eval_allocator))),
+        .map(|result| Evaluator::new(eval_allocator).evaluate(result)),
     )
   }
 
@@ -111,14 +111,14 @@ impl<'s> Executor<'s> {
       return Err("failed to evaluate statement".into());
     }
 
-    Ok(result.map(|result| result.visit(&mut Evaluator::new(eval_allocator))))
+    Ok(result.map(|result| Evaluator::new(eval_allocator).evaluate(result)))
   }
 
   pub fn evaluate<'eval>(&self, eval_allocator: &'eval Allocator, expr: ExprRef<'eval>) -> ExprRef<'eval>
   where
     's: 'eval,
   {
-    expr.visit(&mut Evaluator::new(eval_allocator))
+    Evaluator::new(eval_allocator).evaluate(expr)
   }
 }
 
@@ -219,47 +219,101 @@ impl<'eval> ExprVisitor<'eval> for Replace<'eval> {
 
 struct Evaluator<'eval> {
   eval_allocator: &'eval Allocator,
+  something_changed: bool,
 }
 
 impl<'eval> Evaluator<'eval> {
   pub fn new(eval_allocator: &'eval Allocator) -> Self {
-    Self { eval_allocator }
-  }
-}
-
-impl<'eval> ExprVisitor<'eval> for Evaluator<'eval> {
-  type Output = ExprRef<'eval>;
-
-  fn visit_term(&mut self, de_bruijn_index: NonZero<u64>) -> Self::Output {
-    self.eval_allocator.new_term(de_bruijn_index)
+    Self {
+      eval_allocator,
+      something_changed: false,
+    }
   }
 
-  fn visit_lambda(&mut self, body: ExprRef<'eval>, parameter_name: &'eval str) -> Self::Output {
-    let new_body = body.visit(self);
-    self.eval_allocator.new_lambda(parameter_name, new_body)
+  /// Recursively evaluate the lambda expression
+  pub fn evaluate(&mut self, mut expr: ExprRef<'eval>) -> ExprRef<'eval> {
+    loop {
+      self.something_changed = false;
+      expr = self.evaluate_strong(expr);
+
+      if !self.something_changed {
+        return expr;
+      }
+    }
   }
 
-  fn visit_eval(&mut self, left: ExprRef<'eval>, right: ExprRef<'eval>) -> Self::Output {
-    match left.unpack() {
-      UnpackedExpr::Term { .. } => {
-        let new_right = right.visit(self);
-        self.eval_allocator.new_eval(left, new_right)
-      },
-      UnpackedExpr::Lambda { body, .. } => {
-        let new_right = right.visit(&mut Shift::new(self.eval_allocator, 1, 1));
-        let new_expr = body
-          .visit(&mut Replace::new(self.eval_allocator, new_right))
-          .visit(&mut Shift::new(self.eval_allocator, 1, -1));
+  /// Attempts to evaluate the body of a lambda expression
+  fn evaluate_strong(&mut self, expr: ExprRef<'eval>) -> ExprRef<'eval> {
+    use UnpackedExpr::*;
 
-        new_expr.visit(self)
-      },
-      UnpackedExpr::Eval { .. } => {
-        let new_left = left.visit(self);
-        if matches!(new_left.unpack(), UnpackedExpr::Eval { .. }) {
-          let new_right = right.visit(self);
-          self.eval_allocator.new_eval(new_left, new_right)
+    match expr.unpack() {
+      Term { .. } => expr,
+
+      Lambda { body, parameter_name } => {
+        let new_body = self.evaluate_strong(body);
+        if new_body == body {
+          expr // Optimization: avoid an extra allocation
         } else {
-          self.eval_allocator.new_eval(new_left, right).visit(self)
+          self.eval_allocator.new_lambda(parameter_name, new_body)
+        }
+      },
+
+      Eval { left, right } => {
+        let new_left = self.evaluate_weak(left);
+        match new_left.unpack() {
+          Term { .. } | Eval { .. } => {
+            let new_right = self.evaluate_strong(right);
+            if new_left == left && new_right == right {
+              expr // Optimization: avoid an extra allocation
+            } else {
+              self.eval_allocator.new_eval(new_left, new_right)
+            }
+          },
+
+          Lambda { body, .. } => {
+            self.something_changed = true;
+
+            let shifted_right = right.visit(&mut Shift::new(self.eval_allocator, 1, 1));
+            body
+              .visit(&mut Replace::new(self.eval_allocator, shifted_right))
+              .visit(&mut Shift::new(self.eval_allocator, 1, -1))
+            // No need to recurse ... next loop iteration will attempt the substitution
+          },
+        }
+      },
+    }
+  }
+
+  /// Lambda expression is left as lazily evaluated
+  fn evaluate_weak(&mut self, expr: ExprRef<'eval>) -> ExprRef<'eval> {
+    use UnpackedExpr::*;
+
+    match expr.unpack() {
+      Term { .. } => expr,
+
+      Lambda { .. } => expr, // Lazily evaluated
+
+      Eval { left, right } => {
+        let new_left = self.evaluate_weak(left);
+        match new_left.unpack() {
+          Term { .. } | Eval { .. } => {
+            let new_right = self.evaluate_strong(right);
+            if new_left == left && new_right == right {
+              expr // Optimization: avoid an extra allocation
+            } else {
+              self.eval_allocator.new_eval(new_left, new_right)
+            }
+          },
+
+          Lambda { body, .. } => {
+            self.something_changed = true;
+
+            let shifted_right = right.visit(&mut Shift::new(self.eval_allocator, 1, 1));
+            body
+              .visit(&mut Replace::new(self.eval_allocator, shifted_right))
+              .visit(&mut Shift::new(self.eval_allocator, 1, -1))
+            // No need to recurse ... next loop iteration will attempt the substitution
+          },
         }
       },
     }
