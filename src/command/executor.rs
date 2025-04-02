@@ -26,6 +26,7 @@ impl<'s> Executor<'s> {
   }
 
   #[inline]
+  #[allow(unused)]
   pub fn get_global(&self, name: &str) -> Option<ExprRef<'s>> {
     self.globals.borrow().get(name).cloned()
   }

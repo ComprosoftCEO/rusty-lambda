@@ -100,6 +100,8 @@ test = \n.\f x.(f (n f x))
 test2 = (test 2)
 ```
 
+You must specify a `--term` flag, which is a lambda statement to evaluate. (Like `test` or `(test (\x.x 3))`).
+
 **Encode to ASCII binary:**
 
 ```bash
@@ -128,12 +130,14 @@ lambda encode code.txt --term test2 --evaluate
 # 000001110011100111010
 ```
 
+If evaluating the term, you can optionally pass the `--steps` / `-s` flag to print the reduction steps to stderr.
+
 **Specify custom strings for `0` and `1`:**
 
-When not using the `--binary` flag. You can specify only one flag or both flags.
+When not using the `--binary` flag. You can specify only one flag or both flags. (_Notice we're using a lambda expression here, not just a named term._)
 
 ```bash
-lambda encode code.txt --term test2 --zero a --one b
+lambda encode code.txt --term '(test 2)' --zero a --one b
 # abaaaaaaabbbaababbbbabbabaaaaaabbbaabbbaba
 ```
 
@@ -196,6 +200,8 @@ lambda decode --binary encoded.bin
 ```bash
 lambda decode encoded.txt --evaluate
 ```
+
+If evaluating the term, you can optionally pass the `--steps` / `-s` flag to print the reduction steps to stderr.
 
 **Specify custom strings for `0` and `1`:**
 

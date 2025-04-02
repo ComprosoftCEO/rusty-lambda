@@ -78,14 +78,16 @@ impl EncodeArgs {
       executor.load_code(file_data.as_str(), file.to_str())?;
     }
 
-    // Look up the term by name
-    let mut expr = match executor.get_global(&self.term) {
-      None => return Err(format!("unknown term {}", self.term).into()),
-      Some(expr) => expr,
+    // Execute the term as code
+    let eval_allocator = Allocator::new();
+    let mut expr = match executor.load_statement(&eval_allocator, &self.term) {
+      Ok(Some(expr)) => expr,
+      Ok(None) | Err(_) => {
+        return Err(format!("invalid term: {}", self.term).into());
+      },
     };
 
     // Possibly evaluate the expression
-    let eval_allocator = Allocator::new();
     if self.evaluate {
       expr = executor.evaluate(&eval_allocator, expr, self.steps);
     }
