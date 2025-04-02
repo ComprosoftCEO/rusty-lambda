@@ -86,7 +86,7 @@ impl DecodeArgs {
     // Possibly evaluate the expression
     if self.evaluate {
       let executor = Executor::new();
-      expr = executor.evaluate(&allocator, expr);
+      expr = executor.evaluate(&allocator, expr, false);
     }
 
     // Print decoded expression

@@ -30,47 +30,21 @@ impl<'s> Executor<'s> {
     self.globals.borrow().get(name).cloned()
   }
 
-  /// Load a code file, but don't evaluate anything.
+  /// Load a code file and return any statements that might need to be evaluated.
   /// Name is just a helpful string for error handling.
-  pub fn load_code(&'s self, code: &'s str, name: Option<&str>) -> Result<(), Box<dyn Error>> {
-    let name_str = name.map(|n| format!("{n}: ")).unwrap_or_default();
-
-    let eval_allocator = Allocator::new();
-    let mut globals = self.globals.borrow_mut();
-    let mut numbers = self.numbers.borrow_mut();
-
-    let mut symbol_table = SymbolTable::new(&self.assign_allocator, &eval_allocator, &mut globals, &mut numbers);
-    symbol_table.set_line_numbers(code);
-
-    self
-      .program_parser
-      .parse(&mut symbol_table, code)
-      .map_err(|e| format!("{name_str}parsing error: {e}"))?;
-
-    symbol_table.print_messages();
-    if symbol_table.has_errors() {
-      return Err(format!("{name_str}failed to load code").into());
-    }
-
-    Ok(())
-  }
-
-  /// Load a code file and evaluate the statement
-  pub fn load_and_eval_code<'eval>(
-    &'s self,
-    eval_allocator: &'eval Allocator,
-    code: &'s str,
-    name: Option<&str>,
-  ) -> Result<impl Iterator<Item = ExprRef<'eval>>, Box<dyn Error>>
-  where
-    's: 'eval,
-  {
+  pub fn load_code(&'s self, code: &'s str, name: Option<&str>) -> Result<Vec<ExprRef<'s>>, Box<dyn Error>> {
     let name_str = name.map(|n| format!("{n}: ")).unwrap_or_default();
 
     let mut globals = self.globals.borrow_mut();
     let mut numbers = self.numbers.borrow_mut();
 
-    let mut symbol_table = SymbolTable::new(&self.assign_allocator, eval_allocator, &mut globals, &mut numbers);
+    let mut symbol_table = SymbolTable::new(
+      &self.assign_allocator,
+      &self.assign_allocator,
+      &mut globals,
+      &mut numbers,
+    );
+
     let results = self
       .program_parser
       .parse(&mut symbol_table, code)
@@ -81,15 +55,11 @@ impl<'s> Executor<'s> {
       return Err(format!("{name_str}failed to load code").into());
     }
 
-    Ok(
-      results
-        .into_iter()
-        .map(|result| Evaluator::new(eval_allocator).evaluate(result)),
-    )
+    Ok(results)
   }
 
-  /// Load and evaluate a single statement
-  pub fn load_and_eval_statement<'eval>(
+  /// Load a single statement. Returns None if an assignment was loaded instead.
+  pub fn load_statement<'eval>(
     &'s self,
     eval_allocator: &'eval Allocator,
     code: &'s str,
@@ -111,14 +81,20 @@ impl<'s> Executor<'s> {
       return Err("failed to evaluate statement".into());
     }
 
-    Ok(result.map(|result| Evaluator::new(eval_allocator).evaluate(result)))
+    Ok(result)
   }
 
-  pub fn evaluate<'eval>(&self, eval_allocator: &'eval Allocator, expr: ExprRef<'eval>) -> ExprRef<'eval>
+  /// Evaluate an expression and return the result
+  pub fn evaluate<'eval>(
+    &self,
+    eval_allocator: &'eval Allocator,
+    expr: ExprRef<'eval>,
+    show_steps: bool,
+  ) -> ExprRef<'eval>
   where
     's: 'eval,
   {
-    Evaluator::new(eval_allocator).evaluate(expr)
+    Evaluator::new(eval_allocator, show_steps).evaluate(expr)
   }
 }
 
@@ -219,27 +195,35 @@ impl<'eval> ExprVisitor<'eval> for Replace<'eval> {
 
 struct Evaluator<'eval> {
   eval_allocator: &'eval Allocator,
+  show_steps: bool,
   something_changed: bool,
 }
 
 impl<'eval> Evaluator<'eval> {
-  pub fn new(eval_allocator: &'eval Allocator) -> Self {
+  pub fn new(eval_allocator: &'eval Allocator, show_steps: bool) -> Self {
     Self {
       eval_allocator,
+      show_steps,
       something_changed: false,
     }
   }
 
   /// Recursively evaluate the lambda expression
   pub fn evaluate(&mut self, mut expr: ExprRef<'eval>) -> ExprRef<'eval> {
-    loop {
+    for step in 0u64.. {
+      if self.show_steps {
+        eprintln!("{step}: {expr:#}");
+      }
+
       self.something_changed = false;
       expr = self.evaluate_strong(expr);
 
       if !self.something_changed {
-        return expr;
+        break;
       }
     }
+
+    return expr;
   }
 
   /// Attempts to evaluate the body of a lambda expression
@@ -260,6 +244,10 @@ impl<'eval> Evaluator<'eval> {
 
       Eval { left, right } => {
         let new_left = self.evaluate_weak(left);
+        if new_left != left {
+          return self.eval_allocator.new_eval(new_left, right);
+        }
+
         match new_left.unpack() {
           Term { .. } | Eval { .. } => {
             let new_right = self.evaluate_strong(right);
@@ -295,6 +283,10 @@ impl<'eval> Evaluator<'eval> {
 
       Eval { left, right } => {
         let new_left = self.evaluate_weak(left);
+        if new_left != left {
+          return self.eval_allocator.new_eval(new_left, right);
+        }
+
         match new_left.unpack() {
           Term { .. } | Eval { .. } => {
             let new_right = self.evaluate_strong(right);

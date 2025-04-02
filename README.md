@@ -80,6 +80,16 @@ lambda --interactive code.txt
 lambda -i code.txt code-2.txt
 ```
 
+**Print each step-by-step substitution:**
+
+```bash
+lambda --steps code.txt
+# or
+lambda -s code.txt
+```
+
+Step `0` is the fully expanded starting expression. Steps are printed to stderr so you can still pipe output to a file.
+
 ## Encoding
 
 The program has built-in utilities to convert to-and-from [Binary Lambda Calculus](https://esolangs.org/wiki/Binary_lambda_calculus).

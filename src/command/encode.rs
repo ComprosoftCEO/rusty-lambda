@@ -83,7 +83,7 @@ impl EncodeArgs {
     // Possibly evaluate the expression
     let eval_allocator = Allocator::new();
     if self.evaluate {
-      expr = executor.evaluate(&eval_allocator, expr);
+      expr = executor.evaluate(&eval_allocator, expr, false);
     }
 
     if self.binary {
