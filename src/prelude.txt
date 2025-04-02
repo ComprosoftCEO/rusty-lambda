@@ -50,10 +50,5 @@ pair  = \x y.\s.(s x y)
 left  = \p.(p true)
 right = \p.(p false)
 
-; Lists
-nil  = (pair false false)
-cons = \h t.(pair true (pair h t))
-
-empty? = \l.(not (left l))
-head   = \l.(left (right l))
-tail   = \l.(right (right l))
+; Y-combinator
+Y = \f.(\g.(f (g g)) \g.(f (g g)))
