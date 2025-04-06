@@ -45,6 +45,7 @@ impl<'s> Executor<'s> {
       &mut globals,
       &mut numbers,
     );
+    symbol_table.set_line_numbers(code);
 
     let results = self
       .program_parser
@@ -224,7 +225,7 @@ impl<'eval> Evaluator<'eval> {
       }
     }
 
-    return expr;
+    expr
   }
 
   /// Attempts to evaluate the body of a lambda expression
