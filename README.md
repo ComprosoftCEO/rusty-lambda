@@ -23,10 +23,14 @@ f4 = \x y z.(x y z z)
 2         ; \f.\x.(f (f x))
 \g.(g 5)  ; \g.(g \f.\x.(f (f (f (f (f x))))))
 
-; Lists are also built-in
-[]       ; Empty list (false)
-[1]      ; (pair 1 false)
-[5 2 1]  ; (pair 5 (pair 2 (pair 1 false)))
+; Lists are built-in
+[]          ; Empty list: (false)
+[1]         ; (pair 1 false)
+[5 2 \x.x]  ; (pair 5 (pair 2 (pair \x.x false)))
+
+; So are tuples
+{}       ; Empty tuple:       \T.T
+{1 \x.x} ; Two element tuple: \T.(T 1 \x.x)
 
 ; Prelude defines some built-in functions
 false

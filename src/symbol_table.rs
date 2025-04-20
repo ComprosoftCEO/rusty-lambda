@@ -160,6 +160,17 @@ impl<'assign, 'eval, 'globals, 'numbers> SymbolTable<'assign, 'eval, 'globals, '
     })
   }
 
+  pub fn build_assign_tuple(&mut self, terms: Vec<ExprRef<'assign>>) -> ExprRef<'assign> {
+    // Fold into \T.(T term1 term2 ... termN)
+    self.assign_allocator.new_lambda(
+      "T",
+      terms.into_iter().fold(
+        self.assign_allocator.new_term(unsafe { NonZero::new_unchecked(1) }),
+        |tuple, term| self.assign_allocator.new_eval(tuple, term),
+      ),
+    )
+  }
+
   pub fn build_number(&mut self, number: u64) -> ExprRef<'assign> {
     // 0 should always exist in the list
     if self.numbers.is_empty() {
@@ -267,6 +278,17 @@ impl<'assign, 'eval, 'globals, 'numbers> SymbolTable<'assign, 'eval, 'globals, '
         ),
       )
     })
+  }
+
+  pub fn build_eval_tuple(&mut self, terms: Vec<ExprRef<'eval>>) -> ExprRef<'eval> {
+    // Fold into \T.(T term1 term2 ... termN)
+    self.eval_allocator.new_lambda(
+      "T",
+      terms.into_iter().fold(
+        self.eval_allocator.new_term(unsafe { NonZero::new_unchecked(1) }),
+        |tuple, term| self.eval_allocator.new_eval(tuple, term),
+      ),
+    )
   }
 }
 

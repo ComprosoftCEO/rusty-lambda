@@ -1,3 +1,10 @@
+; Identity
+ident = \x.x
+const = \c.(\x.c)
+
+I = ident
+C = const
+
 ; Boolean
 true = \x y.x
 false = \x y.y
@@ -49,7 +56,7 @@ lss?  = \m n.(not (geq? m n))
 Y = \f.(\g.(f (g g)) \g.(f (g g)))
 
 ; Pairs
-pair  = \x y.\s.(s x y)
+pair  = \x y.\p.(p x y)
 left  = \p.(p true)
 right = \p.(p false)
 
