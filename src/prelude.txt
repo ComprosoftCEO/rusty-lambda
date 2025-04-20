@@ -45,10 +45,46 @@ lss?  = \m n.(not (geq? m n))
 <= = leq?
 >= = geq?
 
+; Y-combinator
+Y = \f.(\g.(f (g g)) \g.(f (g g)))
+
 ; Pairs
 pair  = \x y.\s.(s x y)
 left  = \p.(p true)
 right = \p.(p false)
 
-; Y-combinator
-Y = \f.(\g.(f (g g)) \g.(f (g g)))
+; Lists
+nil  = false
+cons = pair
+head = left
+tail = \L.(L (\h t.\_.t) nil)
+nil? = \L.(L (\h t.\_.false) true)
+isnil? = nil?
+
+fold = \f.(Y (\r.\a L.(L (\h t.\_.(r (f a h) t)) a)))
+rfold = \f a.(Y (\r.\L.(L (\h t.\_.(f (r t) h)) a)))
+foldr = rfold
+
+len = (fold \a h.(succ a) 0)
+reverse = (fold \a h.(cons h a) nil)
+concat = \L1 L2.(rfold (\a h.(cons h a)) L2 L1)
+append = \L v.(concat L (cons v nil))
+
+map = \f.(rfold (\a h.(cons (f h) a)) nil)
+filter = \f.(rfold (\a h.((f h) (cons h a) a)) nil)
+
+skip = \n.(n tail)
+skipWhile = \f.(Y (\r.\L.(L (\h t.\_.((f h) (r t) L)) nil)))
+take = (Y (\r.\n.\L.(L (\h t.\_.((zero? n) nil (cons h (r (pred n) t)))) nil)))
+takeWhile = \f.(Y (\r.\L.(L (\h t.\_.((f h) (cons h (r t)) nil)) nil)))
+
+all = \f.(fold \a h.(and a (f h)) true)
+any = \f.(fold \a h.(or a (f h)) false)
+
+elementAt = \n.\L.(head (skip n L))
+insertAt = \n v.\L.(concat (take n L) (cons v (skip n L)))
+removeAt = \n.\L.(concat (take n L) (skip (succ n) L))
+replaceAt = \n v.\L.(concat (take n L) (cons v (skip (succ n) L)))
+
+; Note: returns len(L) if not found
+indexOf = \f.(Y (\r.\n.\L.(L (\h t.\_.((f h) n (r (succ n) t))) n)) 0)

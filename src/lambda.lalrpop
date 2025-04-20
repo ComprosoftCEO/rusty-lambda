@@ -33,6 +33,7 @@ AssignExpression: ExprRef<'assign> = {
   "\\" <is:AssignLambdaIdentifier+> "." <e:AssignExpression> => sym.build_assign_lambda(is, e),
   "(" <l:AssignExpression> <rs:AssignExpression+> ")" => sym.build_assign_eval(l, rs),
   Number => sym.build_number(<>),
+  "[" <es:AssignExpression*> "]" => sym.build_assign_list(es),
 }
 
 AssignLambdaIdentifier: &'input str = {
@@ -48,6 +49,7 @@ EvalExpression: ExprRef<'eval> = {
   "\\" <is:EvalLambdaIdentifier+> "." <e:EvalExpression> => sym.build_eval_lambda(is, e),
   "(" <l:EvalExpression> <rs:EvalExpression+> ")" => sym.build_eval_eval(l, rs),
   <Number> => sym.build_number(<>),
+  "[" <es:AssignExpression*> "]" => sym.build_eval_list(es),
 }
 
 EvalLambdaIdentifier: &'input str = {

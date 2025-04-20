@@ -141,6 +141,25 @@ impl<'assign, 'eval, 'globals, 'numbers> SymbolTable<'assign, 'eval, 'globals, '
       .fold(left, |left, right| self.assign_allocator.new_eval(left, right))
   }
 
+  pub fn build_assign_list(&mut self, terms: Vec<ExprRef<'assign>>) -> ExprRef<'assign> {
+    // Safety: false is defined in the prelude before a list is declared
+    let nil_expr = self.globals.get("false").cloned().expect("false is not defined");
+
+    // Fold into (pair 1 (pair 2 (pair ... false))) where pair = \x y.\L.(L x y)
+    terms.into_iter().rfold(nil_expr, |list, term| {
+      self.assign_allocator.new_lambda(
+        "L",
+        self.assign_allocator.new_eval(
+          self.assign_allocator.new_eval(
+            self.assign_allocator.new_term(unsafe { NonZero::new_unchecked(1) }),
+            term,
+          ),
+          list,
+        ),
+      )
+    })
+  }
+
   pub fn build_number(&mut self, number: u64) -> ExprRef<'assign> {
     // 0 should always exist in the list
     if self.numbers.is_empty() {
@@ -230,6 +249,24 @@ impl<'assign, 'eval, 'globals, 'numbers> SymbolTable<'assign, 'eval, 'globals, '
     params
       .into_iter()
       .fold(left, |left, right| self.eval_allocator.new_eval(left, right))
+  }
+
+  pub fn build_eval_list(&mut self, terms: Vec<ExprRef<'eval>>) -> ExprRef<'eval> {
+    // Safety: false is defined in the prelude before a list is declared
+    let nil_expr = self.globals.get("false").cloned().expect("false is not defined");
+
+    // Fold into (pair 1 (pair 2 (pair ... false))) where pair = \x y.\L.(L x y)
+    terms.into_iter().rfold(nil_expr, |list, term| {
+      self.eval_allocator.new_lambda(
+        "L", // List
+        self.eval_allocator.new_eval(
+          self
+            .eval_allocator
+            .new_eval(self.eval_allocator.new_term(unsafe { NonZero::new_unchecked(1) }), term),
+          list,
+        ),
+      )
+    })
   }
 }
 

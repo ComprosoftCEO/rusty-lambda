@@ -23,6 +23,11 @@ f4 = \x y z.(x y z z)
 2         ; \f.\x.(f (f x))
 \g.(g 5)  ; \g.(g \f.\x.(f (f (f (f (f x))))))
 
+; Lists are also built-in
+[]       ; Empty list (false)
+[1]      ; (pair 1 false)
+[5 2 1]  ; (pair 5 (pair 2 (pair 1 false)))
+
 ; Prelude defines some built-in functions
 false
 true
@@ -34,6 +39,7 @@ not
 (succ 18)
 (and (or false true) true false)
 (mul 5 (add 10 1))
+(map (+ 5) [2 4 6])
 ```
 
 Comments begin with a semicolon `;` and continue to the end of the line.

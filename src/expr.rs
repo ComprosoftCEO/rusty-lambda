@@ -244,7 +244,7 @@ impl Allocator {
 
     // Safety: we're always setting the highest bit, which will never be 0
     let term = unsafe { NonZero::new_unchecked(de_bruijn_index.get() | IS_TERM_BIT) };
-    return ExprRef(term, PhantomData);
+    ExprRef(term, PhantomData)
   }
 
   /// The parameter name must be 32,767 characters or less
