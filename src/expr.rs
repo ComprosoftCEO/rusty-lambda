@@ -5,22 +5,25 @@ use typed_arena::Arena;
 pub trait ExprVisitor<'a> {
   type Output;
 
-  fn visit_term(&mut self, de_bruijn_index: NonZero<u64>) -> Self::Output;
+  fn visit_term(&mut self, expr: ExprRef<'a>, de_bruijn_index: NonZero<u64>) -> Self::Output;
 
-  fn visit_lambda(&mut self, body: ExprRef<'a>, parameter_name: &'a str) -> Self::Output;
+  fn visit_lambda(&mut self, expr: ExprRef<'a>, body: ExprRef<'a>, parameter_name: &'a str) -> Self::Output;
 
-  fn visit_eval(&mut self, left: ExprRef<'a>, right: ExprRef<'a>) -> Self::Output;
+  fn visit_eval(&mut self, expr: ExprRef<'a>, left: ExprRef<'a>, right: ExprRef<'a>) -> Self::Output;
 }
 
-const LENGTH_MASK: u64 = 0xffff_0000_0000_0000;
-const LENGTH_SHIFT: u64 = 48;
-const MAX_LENGTH: u64 = 0xffff;
+const IS_TERM_BIT: u64 = 0x8000_0000_0000_0000;
+const TERM_MASK: u64 = 0x7fff_ffff_ffff_ffff;
 const POINTER_MASK: u64 = 0x0000_ffff_ffff_ffff;
+
+const STR_LENGTH_MASK: u64 = 0xffff_0000_0000_0000;
+const STR_LENGTH_SHIFT: u64 = 48;
+const MAX_STR_LENGTH: u64 = 0x7fff;
 
 /// Reference to a Lambda expression.
 ///
-/// - Term 1 to 65535 = `xxxx 0000 0000 0000`
-/// - Normal Pointer  = `0000 xxxx xxxx xxxx`
+/// - Term     = `1xxx xxxx xxxx xxxx`
+/// - Pointer  = `0000 xxxx xxxx xxxx`
 ///
 /// Two ExprRefs are considered equal if they point to the same object in memory,
 /// not necessarily that they are isomorphic to each other. (reference equality)
@@ -36,15 +39,15 @@ pub enum UnpackedExpr<'a> {
 impl<'a> ExprRef<'a> {
   #[inline]
   pub fn visit<V: ExprVisitor<'a>>(self, visitor: &mut V) -> <V as ExprVisitor<'a>>::Output {
-    if self.0.get() & POINTER_MASK == 0 {
+    if (self.0.get() & IS_TERM_BIT) != 0 {
       // Safety: we only construct an ExprRef from a non-zero length
-      let de_bruijn_index = unsafe { NonZero::new_unchecked(self.0.get() >> LENGTH_SHIFT) };
-      visitor.visit_term(de_bruijn_index)
+      let de_bruijn_index = unsafe { NonZero::new_unchecked(self.0.get() & TERM_MASK) };
+      visitor.visit_term(self, de_bruijn_index)
     } else {
       // Safety: these are only constructed from valid references and can't
       // outlive the lifetime of the arena allocator.
       let compact_expr_ref = unsafe { &*((self.0.get() & POINTER_MASK) as *const CompactExpr) };
-      compact_expr_ref.visit(visitor)
+      compact_expr_ref.visit(self, visitor)
     }
   }
 
@@ -54,15 +57,15 @@ impl<'a> ExprRef<'a> {
     impl<'a> ExprVisitor<'a> for UnpackVisitor {
       type Output = UnpackedExpr<'a>;
 
-      fn visit_term(&mut self, de_bruijn_index: NonZero<u64>) -> Self::Output {
+      fn visit_term(&mut self, _: ExprRef<'a>, de_bruijn_index: NonZero<u64>) -> Self::Output {
         UnpackedExpr::Term { de_bruijn_index }
       }
 
-      fn visit_lambda(&mut self, body: ExprRef<'a>, parameter_name: &'a str) -> Self::Output {
+      fn visit_lambda(&mut self, _: ExprRef<'a>, body: ExprRef<'a>, parameter_name: &'a str) -> Self::Output {
         UnpackedExpr::Lambda { parameter_name, body }
       }
 
-      fn visit_eval(&mut self, left: ExprRef<'a>, right: ExprRef<'a>) -> Self::Output {
+      fn visit_eval(&mut self, _: ExprRef<'a>, left: ExprRef<'a>, right: ExprRef<'a>) -> Self::Output {
         UnpackedExpr::Eval { left, right }
       }
     }
@@ -82,7 +85,7 @@ impl fmt::Display for ExprRef<'_> {
     impl<'s> ExprVisitor<'s> for Visitor<'_, '_, 's> {
       type Output = fmt::Result;
 
-      fn visit_term(&mut self, de_bruijn_index: NonZero<u64>) -> Self::Output {
+      fn visit_term(&mut self, _: ExprRef<'s>, de_bruijn_index: NonZero<u64>) -> Self::Output {
         if self.f.sign_plus() {
           write!(self.f, "{}", de_bruijn_index)?;
         } else if self.f.sign_minus() {
@@ -110,7 +113,7 @@ impl fmt::Display for ExprRef<'_> {
         Ok(())
       }
 
-      fn visit_lambda(&mut self, body: ExprRef<'s>, parameter_name: &'s str) -> Self::Output {
+      fn visit_lambda(&mut self, _: ExprRef<'s>, body: ExprRef<'s>, parameter_name: &'s str) -> Self::Output {
         let count = self
           .shadowed_variables
           .entry(parameter_name)
@@ -148,7 +151,7 @@ impl fmt::Display for ExprRef<'_> {
         Ok(())
       }
 
-      fn visit_eval(&mut self, left: ExprRef<'s>, right: ExprRef<'s>) -> Self::Output {
+      fn visit_eval(&mut self, _: ExprRef<'s>, left: ExprRef<'s>, right: ExprRef<'s>) -> Self::Output {
         write!(self.f, "(")?;
         left.visit(self)?;
         write!(self.f, " ")?;
@@ -167,9 +170,7 @@ impl fmt::Display for ExprRef<'_> {
 
 /// Very efficient way to represent a Lambda expression
 ///
-/// - Term:
-///   - Left  = 0
-///   - Right = Index (1 to 2^64-1)
+/// - Term - Not needed, encoded into ExprRef
 /// - Lambda
 ///   - Left = [ExprRef](ExprRef)
 ///   - Right = `&str` where `x` stores the length (1 to 65535) and `y` stores the pointer bits: `xxxx yyyy yyyy yyyy`.
@@ -183,28 +184,21 @@ struct CompactExpr {
 }
 
 impl CompactExpr {
-  pub fn new_term(de_bruijn_index: NonZero<u64>) -> Self {
-    Self {
-      left: 0,
-      right: de_bruijn_index.get(),
-    }
-  }
-
   pub fn new_lambda<'a>(param_name: &'a str, body: ExprRef<'a>) -> Self {
     debug_assert!(!param_name.is_empty(), "Lambda cannot have an empty parameter name");
     debug_assert!(
-      param_name.len() as u64 <= MAX_LENGTH,
+      param_name.len() as u64 <= MAX_STR_LENGTH,
       "Lambda name is too long ({} > {})",
       param_name.len(),
-      MAX_LENGTH
+      MAX_STR_LENGTH
     );
 
     let ptr = param_name.as_bytes().as_ptr() as u64;
-    debug_assert!(ptr & LENGTH_MASK == 0, "Name has pointer high bits set to 0");
+    debug_assert!(ptr & STR_LENGTH_MASK == 0, "Name has pointer high bits set to 0");
 
     Self {
       left: body.0.get(),
-      right: ((param_name.len() as u64) << LENGTH_SHIFT) | ptr,
+      right: ((param_name.len() as u64) << STR_LENGTH_SHIFT) | ptr,
     }
   }
 
@@ -215,25 +209,21 @@ impl CompactExpr {
     }
   }
 
-  pub fn visit<'a, V: ExprVisitor<'a>>(self, visitor: &mut V) -> <V as ExprVisitor<'a>>::Output {
-    if self.left == 0 {
-      let de_bruijn_index = unsafe { NonZero::new_unchecked(self.right) };
-      return visitor.visit_term(de_bruijn_index);
-    }
-
-    // Safety: we check above that it's not 0
+  pub fn visit<'a, V: ExprVisitor<'a>>(self, expr: ExprRef<'a>, visitor: &mut V) -> <V as ExprVisitor<'a>>::Output {
+    // Safety: we ensure you can't make a 0 reference
     let left = ExprRef(unsafe { NonZero::new_unchecked(self.left) }, PhantomData);
-    if self.right & POINTER_MASK == 0 || self.right & LENGTH_MASK == 0 {
+
+    if (self.right & IS_TERM_BIT != 0) || (self.right & STR_LENGTH_MASK == 0) {
       // Safety: we ensure you can't make a 0 reference
       let right = ExprRef(unsafe { NonZero::new_unchecked(self.right) }, PhantomData);
-      return visitor.visit_eval(left, right);
+      return visitor.visit_eval(expr, left, right);
     }
 
     let param_name_ptr = (self.right & POINTER_MASK) as *const u8;
-    let param_name_len = (self.right >> LENGTH_SHIFT) as usize;
+    let param_name_len = (self.right >> STR_LENGTH_SHIFT) as usize;
     let param_name = unsafe { str::from_utf8_unchecked(slice::from_raw_parts(param_name_ptr, param_name_len)) };
 
-    visitor.visit_lambda(left, param_name)
+    visitor.visit_lambda(expr, left, param_name)
   }
 }
 
@@ -250,27 +240,21 @@ impl Allocator {
 
   #[allow(clippy::needless_lifetimes)]
   pub fn new_term<'a>(&'a self, de_bruijn_index: NonZero<u64>) -> ExprRef<'a> {
-    // Special case: short indexes have a very compact representation
-    if de_bruijn_index.get() < MAX_LENGTH {
-      // Safety: len > 0 and len <= 0xffff
-      let len = unsafe { NonZero::new_unchecked(de_bruijn_index.get() << 48) };
-      return ExprRef(len, PhantomData);
-    }
+    debug_assert!(de_bruijn_index.get() <= TERM_MASK, "Term index is too large");
 
-    // Otherwise, do a real allocation
-    let term = self.arena.alloc(CompactExpr::new_term(de_bruijn_index));
-    let term_ptr = term as *const CompactExpr as u64;
-    debug_assert!(term_ptr & LENGTH_MASK == 0, "Term pointer has high bits set to 0");
-
-    // Safety: newly allocated pointer is never 0
-    ExprRef(unsafe { NonZero::new_unchecked(term_ptr) }, PhantomData)
+    // Safety: we're always setting the highest bit, which will never be 0
+    let term = unsafe { NonZero::new_unchecked(de_bruijn_index.get() | IS_TERM_BIT) };
+    return ExprRef(term, PhantomData);
   }
 
-  /// The parameter name must be 65,535 characters or less
+  /// The parameter name must be 32,767 characters or less
   pub fn new_lambda<'a>(&'a self, param_name: &'a str, body: ExprRef<'a>) -> ExprRef<'a> {
     let lambda = self.arena.alloc(CompactExpr::new_lambda(param_name, body));
     let lambda_ptr = lambda as *const CompactExpr as u64;
-    debug_assert!(lambda_ptr & LENGTH_MASK == 0, "Lambda pointer has high bits set to 0");
+    debug_assert!(
+      lambda_ptr & STR_LENGTH_MASK == 0,
+      "Lambda pointer has high bits set to 0"
+    );
 
     // Safety: newly allocated pointer is never 0
     ExprRef(unsafe { NonZero::new_unchecked(lambda_ptr) }, PhantomData)
@@ -279,7 +263,7 @@ impl Allocator {
   pub fn new_eval<'a>(&'a self, left: ExprRef<'a>, right: ExprRef<'a>) -> ExprRef<'a> {
     let eval = self.arena.alloc(CompactExpr::new_eval(left, right));
     let eval_ptr = eval as *const CompactExpr as u64;
-    debug_assert!(eval_ptr & LENGTH_MASK == 0, "Eval pointer has high bits set to 0");
+    debug_assert!(eval_ptr & STR_LENGTH_MASK == 0, "Eval pointer has high bits set to 0");
 
     // Safety: newly allocated pointer is never 0
     ExprRef(unsafe { NonZero::new_unchecked(eval_ptr) }, PhantomData)

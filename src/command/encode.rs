@@ -126,19 +126,19 @@ impl<'zero, 'one> PrintVisitor<'zero, 'one> {
 impl<'eval> ExprVisitor<'eval> for PrintVisitor<'_, '_> {
   type Output = ();
 
-  fn visit_term(&mut self, de_bruijn_index: NonZero<u64>) -> Self::Output {
+  fn visit_term(&mut self, _: ExprRef<'eval>, de_bruijn_index: NonZero<u64>) -> Self::Output {
     for _ in 0..de_bruijn_index.get() {
       print!("{}", self.one);
     }
     print!("{}", self.zero);
   }
 
-  fn visit_lambda(&mut self, body: ExprRef<'eval>, _: &'eval str) -> Self::Output {
+  fn visit_lambda(&mut self, _: ExprRef<'eval>, body: ExprRef<'eval>, _: &'eval str) -> Self::Output {
     print!("{}{}", self.zero, self.zero);
     body.visit(self);
   }
 
-  fn visit_eval(&mut self, left: ExprRef<'eval>, right: ExprRef<'eval>) -> Self::Output {
+  fn visit_eval(&mut self, _: ExprRef<'eval>, left: ExprRef<'eval>, right: ExprRef<'eval>) -> Self::Output {
     print!("{}{}", self.zero, self.one);
     left.visit(self);
     right.visit(self);
@@ -181,20 +181,20 @@ impl ByteVisitor {
 impl<'eval> ExprVisitor<'eval> for ByteVisitor {
   type Output = ();
 
-  fn visit_term(&mut self, de_bruijn_index: NonZero<u64>) -> Self::Output {
+  fn visit_term(&mut self, _: ExprRef<'eval>, de_bruijn_index: NonZero<u64>) -> Self::Output {
     for _ in 0..de_bruijn_index.get() {
       self.push_bit(true);
     }
     self.push_bit(false);
   }
 
-  fn visit_lambda(&mut self, body: ExprRef<'eval>, _: &'eval str) -> Self::Output {
+  fn visit_lambda(&mut self, _: ExprRef<'eval>, body: ExprRef<'eval>, _: &'eval str) -> Self::Output {
     self.push_bit(false);
     self.push_bit(false);
     body.visit(self);
   }
 
-  fn visit_eval(&mut self, left: ExprRef<'eval>, right: ExprRef<'eval>) -> Self::Output {
+  fn visit_eval(&mut self, _: ExprRef<'eval>, left: ExprRef<'eval>, right: ExprRef<'eval>) -> Self::Output {
     self.push_bit(false);
     self.push_bit(true);
     left.visit(self);

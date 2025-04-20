@@ -119,27 +119,36 @@ impl<'eval> Shift<'eval> {
 impl<'eval> ExprVisitor<'eval> for Shift<'eval> {
   type Output = ExprRef<'eval>;
 
-  fn visit_term(&mut self, de_bruijn_index: NonZero<u64>) -> Self::Output {
+  fn visit_term(&mut self, expr: ExprRef<'eval>, de_bruijn_index: NonZero<u64>) -> Self::Output {
     if de_bruijn_index.get() < self.cutoff {
-      self.eval_allocator.new_term(de_bruijn_index)
+      expr // Optimization: avoid an extra allocation
     } else {
       let new_de_bruijn_index = NonZero::new((de_bruijn_index.get() as i64 + self.offset) as u64);
       self.eval_allocator.new_term(new_de_bruijn_index.expect("index is 0"))
     }
   }
 
-  fn visit_lambda(&mut self, body: ExprRef<'eval>, parameter_name: &'eval str) -> Self::Output {
+  fn visit_lambda(&mut self, expr: ExprRef<'eval>, body: ExprRef<'eval>, parameter_name: &'eval str) -> Self::Output {
     self.cutoff += 1;
     let new_body = body.visit(self);
     self.cutoff -= 1;
 
-    self.eval_allocator.new_lambda(parameter_name, new_body)
+    if new_body == body {
+      expr // Optimization: avoid an extra allocation
+    } else {
+      self.eval_allocator.new_lambda(parameter_name, new_body)
+    }
   }
 
-  fn visit_eval(&mut self, left: ExprRef<'eval>, right: ExprRef<'eval>) -> Self::Output {
+  fn visit_eval(&mut self, expr: ExprRef<'eval>, left: ExprRef<'eval>, right: ExprRef<'eval>) -> Self::Output {
     let new_left = left.visit(self);
     let new_right = right.visit(self);
-    self.eval_allocator.new_eval(new_left, new_right)
+
+    if new_left == left && new_right == right {
+      expr // Optimization: avoid an extra allocation
+    } else {
+      self.eval_allocator.new_eval(new_left, new_right)
+    }
   }
 }
 
@@ -172,26 +181,35 @@ impl<'eval> Replace<'eval> {
 impl<'eval> ExprVisitor<'eval> for Replace<'eval> {
   type Output = ExprRef<'eval>;
 
-  fn visit_term(&mut self, de_bruijn_index: NonZero<u64>) -> Self::Output {
+  fn visit_term(&mut self, expr: ExprRef<'eval>, de_bruijn_index: NonZero<u64>) -> Self::Output {
     if de_bruijn_index.get() == self.target {
       self.get_offset_expr(self.target)
     } else {
-      self.eval_allocator.new_term(de_bruijn_index)
+      expr // Optimization: avoid an extra allocation
     }
   }
 
-  fn visit_lambda(&mut self, body: ExprRef<'eval>, parameter_name: &'eval str) -> Self::Output {
+  fn visit_lambda(&mut self, expr: ExprRef<'eval>, body: ExprRef<'eval>, parameter_name: &'eval str) -> Self::Output {
     self.target += 1;
     let new_body = body.visit(self);
     self.target -= 1;
 
-    self.eval_allocator.new_lambda(parameter_name, new_body)
+    if new_body == body {
+      expr // Optimization: avoid an extra allocation
+    } else {
+      self.eval_allocator.new_lambda(parameter_name, new_body)
+    }
   }
 
-  fn visit_eval(&mut self, left: ExprRef<'eval>, right: ExprRef<'eval>) -> Self::Output {
+  fn visit_eval(&mut self, expr: ExprRef<'eval>, left: ExprRef<'eval>, right: ExprRef<'eval>) -> Self::Output {
     let new_left = left.visit(self);
     let new_right = right.visit(self);
-    self.eval_allocator.new_eval(new_left, new_right)
+
+    if new_left == left && new_right == right {
+      expr // Optimization: avoid an extra allocation
+    } else {
+      self.eval_allocator.new_eval(new_left, new_right)
+    }
   }
 }
 

@@ -238,24 +238,24 @@ All Lambda expressions are allocated in an [Arena Allocator](https://en.wikipedi
 
 Lambda expressions utilize a quirk of modern 64-bit pointers where the top 16-bits are always set to 0. This allows us to store extra data in these bits. Namely:
 
-- Terms 1 to 65535 are represented as `xxxx 0000 0000 0000`, where `x` is the 16-bit [de Bruijn index](https://en.wikipedia.org/wiki/De_Bruijn_index). An arena allocation isn't required in this case.
+- If the highest bit is 1, then the pointer is a term `1xxx xxxx xxxx xxxx`, where `x` is the 63-bit [de Bruijn index](https://en.wikipedia.org/wiki/De_Bruijn_index). An arena allocation isn't required in this case.
 - Normal pointers are represented as `0000 yyyy yyyy yyyy`, where `y` is the 48-bit Rust reference to the expression in the arena allocator.
 
 Lambda expressions are represented as 16-byte expressions (`left` and `right`, two 64-bit integers), where:
 
-- **Term** - `left = 0`, `right = ` 64-bit [de Bruijn index](https://en.wikipedia.org/wiki/De_Bruijn_index)
-- **Lambda** - `left` is an expression reference (term or pointer), and `right` is a compact `&str`. The top 16-bits store the string length (1 to 65535) and the bottom 48-bits store the pointer to the `[u8]` slice.
+- **Term** - We never store this in the arena allocator because a 63-bit [de Bruijn index](https://en.wikipedia.org/wiki/De_Bruijn_index) is large enough for all practical purposes.
+- **Lambda** - `left` is an expression reference (term or pointer), and `right` is a compact `&str`. The top 16-bits store the string length (1 to 32767) and the bottom 48-bits store the pointer to the `[u8]` slice. The highest bit is set to 0, or otherwise it would be a term.
 - **Eval** - Both `left` and `right` are expression references (terms or pointers).
 
 The flow for destructuring this data type is:
 
 ```rust
-if left == 0 {
-  // It is an term, right is the 64-bit index
-} else if (top 16-bits of right == 0) or (bottom 48-bits of right == 0) {
-  // It is a eval statement
+if (top-bit of right == 1) {
+  // Right is a term, so this is an eval statement
+} else if (top 16-bits of right == 0) {
+  // Right is a pointer, so this is a eval statement
 } else {
-  // It is a lambda statement
+  // Right is a compact string, so this is a lambda statement
 }
 ```
 
