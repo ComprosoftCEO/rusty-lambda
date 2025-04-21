@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::num::NonZero;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{collections::HashMap, error::Error};
 
 use crate::expr::{Allocator, ExprRef, ExprVisitor, UnpackedExpr};
@@ -86,7 +87,8 @@ impl<'s> Executor<'s> {
     Ok(result)
   }
 
-  /// Evaluate an expression and return the result
+  /// Evaluate an expression and return the result.
+  /// Returns None if the execution was aborted.
   pub fn evaluate<'eval>(
     &self,
     eval_allocator: &'eval Allocator,
@@ -97,6 +99,16 @@ impl<'s> Executor<'s> {
     's: 'eval,
   {
     Evaluator::new(eval_allocator, show_steps).evaluate(expr)
+  }
+
+  pub fn evaluate_with_abort<'eval>(
+    &self,
+    eval_allocator: &'eval Allocator,
+    expr: ExprRef<'eval>,
+    show_steps: bool,
+    abort: &AtomicBool,
+  ) -> Option<ExprRef<'eval>> {
+    Evaluator::new(eval_allocator, show_steps).evaluate_with_abort(expr, abort)
   }
 }
 
@@ -244,6 +256,28 @@ impl<'eval> Evaluator<'eval> {
     }
 
     expr
+  }
+
+  /// Same as evaluate(), but has a boolean that can be used to abort early
+  pub fn evaluate_with_abort(&mut self, mut expr: ExprRef<'eval>, abort: &AtomicBool) -> Option<ExprRef<'eval>> {
+    for step in 0u64.. {
+      if self.show_steps {
+        eprintln!("{step}: {expr:#}");
+      }
+
+      if abort.load(Ordering::Relaxed) {
+        return None;
+      }
+
+      self.something_changed = false;
+      expr = self.evaluate_strong(expr);
+
+      if !self.something_changed {
+        break;
+      }
+    }
+
+    Some(expr)
   }
 
   /// Attempts to evaluate the body of a lambda expression

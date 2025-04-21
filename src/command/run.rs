@@ -1,8 +1,12 @@
 use crate::expr::Allocator;
 use clap::Args;
+use crossterm::style::Stylize;
 use rustyline::DefaultEditor;
+use rustyline::config::Configurer;
+use rustyline::error::ReadlineError;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use typed_arena::Arena;
 
 use super::executor::Executor;
@@ -20,6 +24,8 @@ pub struct RunArgs {
   /// List of files to run, in order
   files: Vec<PathBuf>,
 }
+
+static ABORT_EXECUTION: AtomicBool = AtomicBool::new(false);
 
 impl RunArgs {
   pub fn execute(self) -> super::CommandResult {
@@ -50,10 +56,37 @@ impl RunArgs {
       return Ok(());
     }
 
-    let mut last_line: &String = text_data.alloc(String::new());
+    if let Err(e) = ctrlc::set_handler(|| {
+      ABORT_EXECUTION.store(true, Ordering::Relaxed);
+    }) {
+      eprint!("{}failed to set Ctrl+C handler: {}", "Warning: ".yellow(), e);
+    }
+
     let mut editor = DefaultEditor::new()?;
+    editor.set_auto_add_history(true);
+
+    let mut should_exit = false;
     loop {
-      let line = editor.readline("> ")?;
+      let line = match editor.readline("> ") {
+        Ok(line) => {
+          should_exit = false;
+          line
+        },
+
+        Err(ReadlineError::Eof) => return Ok(()),
+        Err(ReadlineError::Interrupted) => {
+          if should_exit {
+            return Ok(());
+          }
+
+          should_exit = true;
+          println!("(To exit, press Ctrl+C again or Ctrl+D or type :exit)");
+          continue;
+        },
+
+        Err(e) => return Err(e.into()),
+      };
+
       if line.trim().is_empty() {
         continue;
       }
@@ -63,16 +96,15 @@ impl RunArgs {
       match executor.load_statement(&eval_allocator, line.as_str()) {
         Ok(None) => {},
         Ok(Some(expr)) => {
-          let result = executor.evaluate(&eval_allocator, expr, self.steps);
-          println!("{result:#}");
+          ABORT_EXECUTION.store(false, Ordering::Relaxed);
+
+          let result = executor.evaluate_with_abort(&eval_allocator, expr, self.steps, &ABORT_EXECUTION);
+          match result {
+            None => println!("Interrupted"),
+            Some(result) => println!("{result:#}"),
+          }
         },
         Err(e) => println!("{e}"),
-      }
-
-      // Save line into REPL history
-      if line != last_line {
-        editor.add_history_entry(line.as_str()).ok();
-        last_line = line;
       }
     }
   }
