@@ -44,6 +44,7 @@ not
 (and (or false true) true false)
 (mul 5 (add 10 1))
 (map (+ 5) [2 4 6])
+((field 1 4) {5 4 3 2})
 ```
 
 Comments begin with a semicolon `;` and continue to the end of the line.
@@ -75,6 +76,7 @@ Built-in REPL commands:
 - `:help` - Print the help message
 - `:load <file>` - Load and run a code file
 - `:print <expr>` - Print an expression without evaluating it
+- `:quit` - Alias for `:exit`
 - `:steps on` - Print reduction steps to stderr
 - `:steps off` - Don't print reduction steps
 

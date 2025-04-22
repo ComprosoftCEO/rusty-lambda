@@ -143,6 +143,7 @@ where
     let mut command_parts = line.split_whitespace();
     match command_parts.next() {
       Some(":e" | ":ex" | ":exi" | ":exit") => return RunLineAction::Exit,
+      Some(":q" | ":qu" | ":qui" | ":quit") => return RunLineAction::Exit,
       Some(":h" | ":he" | ":hel" | ":help") => self.print_help(),
       Some(":s" | ":st" | ":ste" | ":step" | ":steps") => self.set_steps(&line, command_parts.collect()),
       Some(":a" | ":al" | ":all") => self.print_all_globals(),
@@ -165,6 +166,7 @@ where
       (":help", "Print this help message"),
       (":load <file>", "Load and run a code file"),
       (":print <expr>", "Print an expression without evaluating it"),
+      (":quit", "Alias for :exit"),
       (":steps on", "Print reduction steps to stderr"),
       (":steps off", "Don't print reduction steps"),
     ];

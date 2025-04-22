@@ -95,3 +95,9 @@ replaceAt = \n v.\L.(concat (take n L) (cons v (skip (succ n) L)))
 
 ; Note: returns len(L) if not found
 indexOf = \f.(Y (\r.\n.\L.(L (\h t.\_.((f h) n (r (succ n) t))) n)) 0)
+
+; Tuples
+
+; Get ith field of n-length tuple (0 <= i < n, n > 0)
+; E.g.: ((field 1 4) {5 4 3 2}) returns 4
+field = \i n.\T.(T ((i const) (pred (sub n i) const)))
