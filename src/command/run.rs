@@ -133,6 +133,7 @@ where
     match command_parts.next() {
       Some(":h" | ":he" | ":hel" | ":help") => return self.print_help(),
       Some(":s" | ":st" | ":ste" | ":step" | ":steps") => return self.set_steps(&line, command_parts.collect()),
+      Some(":a" | ":al" | ":all") => return self.print_all_globals(&line, command_parts.collect()),
 
       // Unknown commands
       None => {},
@@ -183,6 +184,23 @@ where
           ":steps off".white().bold(),
         )
       },
+    }
+  }
+
+  fn print_all_globals(&self, line: &str, args: Vec<&str>) {
+    if !args.is_empty() {
+      println!("Expecting '{}', given '{line}'", ":all".white().bold(),);
+      return;
+    }
+
+    let all_globals = self.executor.all_globals().borrow();
+
+    let max_name_length = all_globals.keys().map(|name| (*name).len()).max().unwrap_or(1);
+    for (name, value) in all_globals.iter() {
+      println!(
+        "{} = {value:#}",
+        format!("{name: <width$}", width = max_name_length).white().bold(),
+      );
     }
   }
 }

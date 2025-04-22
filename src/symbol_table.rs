@@ -3,12 +3,7 @@ use crossterm::style::Stylize;
 use itertools::Itertools;
 use lalrpop_util::{ErrorRecovery, lexer::Token};
 use num_traits::Num;
-use std::{
-  borrow::Cow,
-  collections::{BTreeMap, HashMap},
-  fmt,
-  num::NonZero,
-};
+use std::{borrow::Cow, collections::BTreeMap, fmt, num::NonZero};
 
 /// - Assigning an expression keeps results allocated permanently.
 /// - Evaluating an expression only computes results then clears allocations.
@@ -19,7 +14,7 @@ where
   assign_allocator: &'assign Allocator,
   eval_allocator: &'eval Allocator,
 
-  globals: &'globals mut HashMap<&'assign str, ExprRef<'assign>>,
+  globals: &'globals mut BTreeMap<&'assign str, ExprRef<'assign>>,
   numbers: &'numbers mut Vec<ExprRef<'assign>>,
   assign_scopes: Vec<&'assign str>,
   eval_scopes: Vec<&'eval str>,
@@ -31,7 +26,7 @@ impl<'assign, 'eval, 'globals, 'numbers> SymbolTable<'assign, 'eval, 'globals, '
   pub fn new(
     assign_allocator: &'assign Allocator,
     eval_allocator: &'eval Allocator,
-    globals: &'globals mut HashMap<&'assign str, ExprRef<'assign>>,
+    globals: &'globals mut BTreeMap<&'assign str, ExprRef<'assign>>,
     numbers: &'numbers mut Vec<ExprRef<'assign>>,
   ) -> Self {
     Self {

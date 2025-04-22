@@ -1,7 +1,11 @@
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
+use std::collections::{self, BTreeMap};
 use std::num::NonZero;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::{collections::HashMap, error::Error};
+use std::{
+  collections::{HashMap, btree_map},
+  error::Error,
+};
 
 use crate::expr::{Allocator, ExprRef, ExprVisitor, UnpackedExpr};
 use crate::lambda::{ProgramParser, StatementParser};
@@ -9,7 +13,7 @@ use crate::symbol_table::SymbolTable;
 
 pub struct Executor<'s> {
   assign_allocator: Allocator,
-  globals: RefCell<HashMap<&'s str, ExprRef<'s>>>,
+  globals: RefCell<BTreeMap<&'s str, ExprRef<'s>>>,
   numbers: RefCell<Vec<ExprRef<'s>>>,
   program_parser: ProgramParser,
   statement_parser: StatementParser,
@@ -19,7 +23,7 @@ impl<'s> Executor<'s> {
   pub fn new() -> Self {
     Self {
       assign_allocator: Allocator::new(),
-      globals: RefCell::new(HashMap::new()),
+      globals: RefCell::new(BTreeMap::new()),
       numbers: RefCell::new(Vec::new()),
       program_parser: ProgramParser::new(),
       statement_parser: StatementParser::new(),
@@ -30,6 +34,11 @@ impl<'s> Executor<'s> {
   #[allow(unused)]
   pub fn get_global(&self, name: &str) -> Option<ExprRef<'s>> {
     self.globals.borrow().get(name).cloned()
+  }
+
+  #[inline]
+  pub fn all_globals(&self) -> &RefCell<BTreeMap<&'s str, ExprRef<'s>>> {
+    &self.globals
   }
 
   /// Load a code file and return any statements that might need to be evaluated.
