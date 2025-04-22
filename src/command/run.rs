@@ -166,7 +166,7 @@ where
       (":load <file>", "Load and run a code file"),
       (":print <expr>", "Print an expression without evaluating it"),
       (":steps on", "Print reduction steps to stderr"),
-      (":steps off", "Don't printing reduction steps"),
+      (":steps off", "Don't print reduction steps"),
     ];
 
     let max_name_length = ALL_COMMANDS.iter().map(|(name, _)| (*name).len()).max().unwrap_or(1);
