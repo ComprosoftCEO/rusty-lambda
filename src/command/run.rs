@@ -68,6 +68,11 @@ where
   abort: &'static AtomicBool,
 }
 
+enum RunLineAction {
+  Continue,
+  Exit,
+}
+
 impl<'text, 'assign> Repl<'text, 'assign>
 where
   'text: 'assign,
@@ -88,7 +93,7 @@ where
     if let Err(e) = ctrlc::set_handler(|| {
       self.abort.store(true, Ordering::Relaxed);
     }) {
-      eprint!("{}failed to set Ctrl+C handler: {}", "Warning: ".yellow(), e);
+      println!("{}failed to set Ctrl+C handler: {}", "Warning: ".yellow(), e);
     }
 
     // Set up REPL editor
@@ -123,42 +128,32 @@ where
         continue; // Skip empty lines
       }
 
-      self.run_line(line);
+      match self.run_line(line) {
+        RunLineAction::Continue => continue,
+        RunLineAction::Exit => return Ok(()),
+      }
     }
   }
 
-  fn run_line(&mut self, line: String) {
+  // Return `true` to exit the program
+  fn run_line(&mut self, line: String) -> RunLineAction {
     // Check for built-in commands
     let mut command_parts = line.split_whitespace();
     match command_parts.next() {
-      Some(":h" | ":he" | ":hel" | ":help") => return self.print_help(),
-      Some(":s" | ":st" | ":ste" | ":step" | ":steps") => return self.set_steps(&line, command_parts.collect()),
-      Some(":a" | ":al" | ":all") => return self.print_all_globals(&line, command_parts.collect()),
-
-      // Unknown commands
-      None => {},
-      Some(_) => {},
-    }
-
-    // Not a built-in command, so run the line as code
-    let line = self.text_data.alloc(line);
-    let eval_allocator = Allocator::new();
-    match self.executor.load_statement(&eval_allocator, line.as_str()) {
-      Ok(None) => {},
-      Ok(Some(expr)) => {
-        self.abort.store(false, Ordering::Relaxed);
-
-        let result = self
-          .executor
-          .evaluate_with_abort(&eval_allocator, expr, self.show_steps, &self.abort);
-
-        match result {
-          None => println!("Interrupted"),
-          Some(result) => println!("{result:#}"),
-        }
+      Some(":e" | ":ex" | ":exi" | ":exit") => return RunLineAction::Exit,
+      Some(":h" | ":he" | ":hel" | ":help") => self.print_help(),
+      Some(":s" | ":st" | ":ste" | ":step" | ":steps") => self.set_steps(&line, command_parts.collect()),
+      Some(":a" | ":al" | ":all") => self.print_all_globals(&line, command_parts.collect()),
+      Some(prefix @ (":p" | ":pr" | ":pri" | ":prin" | ":print")) => {
+        self.print_expression(strip_prefix(&line, prefix).to_string())
       },
-      Err(e) => println!("{e}"),
+      Some(prefix @ (":l" | ":lo" | ":loa" | ":load")) => self.load_file(strip_prefix(&line, prefix)),
+
+      // Not a built-in command, so run the line as code
+      None | Some(_) => self.run_line_as_code(line),
     }
+
+    RunLineAction::Continue
   }
 
   fn print_help(&self) {}
@@ -203,4 +198,69 @@ where
       );
     }
   }
+
+  fn print_expression(&self, expr: String) {
+    let line = self.text_data.alloc(expr);
+    let eval_allocator = Allocator::new();
+    match self.executor.load_expression(&eval_allocator, line.as_str()) {
+      Ok(expr) => println!("{expr:#}"),
+      Err(e) => println!("{e}"),
+    }
+  }
+
+  fn load_file(&self, filename: &str) {
+    let result = (|| -> super::CommandResult {
+      let file_data = self.text_data.alloc(fs::read_to_string(filename)?);
+      let to_evaluate = self.executor.load_code(file_data.as_str(), Some(filename))?;
+
+      println!("Running file: {}", filename.white());
+      for expr in to_evaluate {
+        let eval_allocator = Allocator::new();
+        self.abort.store(false, Ordering::Relaxed);
+
+        let result = self
+          .executor
+          .evaluate_with_abort(&eval_allocator, expr, self.show_steps, &self.abort);
+
+        match result {
+          None => println!("Interrupted"),
+          Some(result) => println!("{result:#}"),
+        }
+      }
+
+      Ok(())
+    })();
+
+    if let Err(e) = result {
+      println!("{} {e}", "Error:".red());
+    }
+  }
+
+  fn run_line_as_code(&self, line: String) {
+    let line = self.text_data.alloc(line);
+    let eval_allocator = Allocator::new();
+
+    match self.executor.load_statement(&eval_allocator, line.as_str()) {
+      Ok(None) => {},
+      Ok(Some(expr)) => {
+        self.abort.store(false, Ordering::Relaxed);
+
+        let result = self
+          .executor
+          .evaluate_with_abort(&eval_allocator, expr, self.show_steps, &self.abort);
+
+        match result {
+          None => println!("Interrupted"),
+          Some(result) => println!("{result:#}"),
+        }
+      },
+
+      Err(e) => println!("{e}"),
+    }
+  }
+}
+
+fn strip_prefix<'a>(input: &'a str, prefix: &str) -> &'a str {
+  let s = input.trim();
+  s.strip_prefix(prefix).unwrap_or(s).trim_start()
 }

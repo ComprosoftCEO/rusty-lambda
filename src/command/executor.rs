@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::expr::{Allocator, ExprRef, ExprVisitor, UnpackedExpr};
-use crate::lambda::{ProgramParser, StatementParser};
+use crate::lambda::{EvalExpressionParser as ExpressionParser, ProgramParser, StatementParser};
 use crate::symbol_table::SymbolTable;
 
 pub struct Executor<'s> {
@@ -17,6 +17,7 @@ pub struct Executor<'s> {
   numbers: RefCell<Vec<ExprRef<'s>>>,
   program_parser: ProgramParser,
   statement_parser: StatementParser,
+  expression_parser: ExpressionParser,
 }
 
 impl<'s> Executor<'s> {
@@ -27,6 +28,7 @@ impl<'s> Executor<'s> {
       numbers: RefCell::new(Vec::new()),
       program_parser: ProgramParser::new(),
       statement_parser: StatementParser::new(),
+      expression_parser: ExpressionParser::new(),
     }
   }
 
@@ -96,8 +98,33 @@ impl<'s> Executor<'s> {
     Ok(result)
   }
 
+  /// Load a single expression.
+  pub fn load_expression<'eval>(
+    &'s self,
+    eval_allocator: &'eval Allocator,
+    code: &'s str,
+  ) -> Result<ExprRef<'eval>, Box<dyn Error>>
+  where
+    's: 'eval,
+  {
+    let mut globals = self.globals.borrow_mut();
+    let mut numbers = self.numbers.borrow_mut();
+
+    let mut symbol_table = SymbolTable::new(&self.assign_allocator, eval_allocator, &mut globals, &mut numbers);
+    let result = self
+      .expression_parser
+      .parse(&mut symbol_table, code)
+      .map_err(|e| format!("parsing error: {e}"))?;
+
+    symbol_table.print_messages();
+    if symbol_table.has_errors() {
+      return Err("failed to evaluate expression".into());
+    }
+
+    Ok(result)
+  }
+
   /// Evaluate an expression and return the result.
-  /// Returns None if the execution was aborted.
   pub fn evaluate<'eval>(
     &self,
     eval_allocator: &'eval Allocator,
@@ -110,6 +137,7 @@ impl<'s> Executor<'s> {
     Evaluator::new(eval_allocator, show_steps).evaluate(expr)
   }
 
+  /// Returns `None` if aborted with Ctrl+C
   pub fn evaluate_with_abort<'eval>(
     &self,
     eval_allocator: &'eval Allocator,
@@ -267,7 +295,7 @@ impl<'eval> Evaluator<'eval> {
     expr
   }
 
-  /// Same as evaluate(), but has a boolean that can be used to abort early
+  /// Same as evaluate(), but has an atomic boolean that can be used to abort early by setting to `true`
   pub fn evaluate_with_abort(&mut self, mut expr: ExprRef<'eval>, abort: &AtomicBool) -> Option<ExprRef<'eval>> {
     for step in 0u64.. {
       if self.show_steps {
