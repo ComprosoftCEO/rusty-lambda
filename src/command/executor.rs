@@ -1,27 +1,31 @@
 use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap};
+use std::error::Error;
 use std::num::NonZero;
-use std::{collections::HashMap, error::Error};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::expr::{Allocator, ExprRef, ExprVisitor, UnpackedExpr};
-use crate::lambda::{ProgramParser, StatementParser};
+use crate::lambda::{EvalExpressionParser as ExpressionParser, ProgramParser, StatementParser};
 use crate::symbol_table::SymbolTable;
 
 pub struct Executor<'s> {
   assign_allocator: Allocator,
-  globals: RefCell<HashMap<&'s str, ExprRef<'s>>>,
+  globals: RefCell<BTreeMap<&'s str, ExprRef<'s>>>,
   numbers: RefCell<Vec<ExprRef<'s>>>,
   program_parser: ProgramParser,
   statement_parser: StatementParser,
+  expression_parser: ExpressionParser,
 }
 
 impl<'s> Executor<'s> {
   pub fn new() -> Self {
     Self {
       assign_allocator: Allocator::new(),
-      globals: RefCell::new(HashMap::new()),
+      globals: RefCell::new(BTreeMap::new()),
       numbers: RefCell::new(Vec::new()),
       program_parser: ProgramParser::new(),
       statement_parser: StatementParser::new(),
+      expression_parser: ExpressionParser::new(),
     }
   }
 
@@ -29,6 +33,11 @@ impl<'s> Executor<'s> {
   #[allow(unused)]
   pub fn get_global(&self, name: &str) -> Option<ExprRef<'s>> {
     self.globals.borrow().get(name).cloned()
+  }
+
+  #[inline]
+  pub fn all_globals(&self) -> &RefCell<BTreeMap<&'s str, ExprRef<'s>>> {
+    &self.globals
   }
 
   /// Load a code file and return any statements that might need to be evaluated.
@@ -86,7 +95,33 @@ impl<'s> Executor<'s> {
     Ok(result)
   }
 
-  /// Evaluate an expression and return the result
+  /// Load a single expression.
+  pub fn load_expression<'eval>(
+    &'s self,
+    eval_allocator: &'eval Allocator,
+    code: &'s str,
+  ) -> Result<ExprRef<'eval>, Box<dyn Error>>
+  where
+    's: 'eval,
+  {
+    let mut globals = self.globals.borrow_mut();
+    let mut numbers = self.numbers.borrow_mut();
+
+    let mut symbol_table = SymbolTable::new(&self.assign_allocator, eval_allocator, &mut globals, &mut numbers);
+    let result = self
+      .expression_parser
+      .parse(&mut symbol_table, code)
+      .map_err(|e| format!("parsing error: {e}"))?;
+
+    symbol_table.print_messages();
+    if symbol_table.has_errors() {
+      return Err("failed to evaluate expression".into());
+    }
+
+    Ok(result)
+  }
+
+  /// Evaluate an expression and return the result.
   pub fn evaluate<'eval>(
     &self,
     eval_allocator: &'eval Allocator,
@@ -97,6 +132,17 @@ impl<'s> Executor<'s> {
     's: 'eval,
   {
     Evaluator::new(eval_allocator, show_steps).evaluate(expr)
+  }
+
+  /// Returns `None` if aborted with Ctrl+C
+  pub fn evaluate_with_abort<'eval>(
+    &self,
+    eval_allocator: &'eval Allocator,
+    expr: ExprRef<'eval>,
+    show_steps: bool,
+    abort: &AtomicBool,
+  ) -> Option<ExprRef<'eval>> {
+    Evaluator::new(eval_allocator, show_steps).evaluate_with_abort(expr, abort)
   }
 }
 
@@ -244,6 +290,28 @@ impl<'eval> Evaluator<'eval> {
     }
 
     expr
+  }
+
+  /// Same as evaluate(), but has an atomic boolean that can be used to abort early by setting to `true`
+  pub fn evaluate_with_abort(&mut self, mut expr: ExprRef<'eval>, abort: &AtomicBool) -> Option<ExprRef<'eval>> {
+    for step in 0u64.. {
+      if self.show_steps {
+        eprintln!("{step}: {expr:#}");
+      }
+
+      if abort.load(Ordering::Relaxed) {
+        return None;
+      }
+
+      self.something_changed = false;
+      expr = self.evaluate_strong(expr);
+
+      if !self.something_changed {
+        break;
+      }
+    }
+
+    Some(expr)
   }
 
   /// Attempts to evaluate the body of a lambda expression

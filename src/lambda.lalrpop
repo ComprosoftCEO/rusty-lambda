@@ -44,7 +44,7 @@ AssignLambdaIdentifier: &'input str = {
   },
 }
 
-EvalExpression: ExprRef<'eval> = {
+pub EvalExpression: ExprRef<'eval> = {
   "(" <EvalExpression> ")",
   <o:@L> <t:Identifier> => sym.build_eval_term(t, o.into()),
   "\\" <is:EvalLambdaIdentifier+> "." <e:EvalExpression> => sym.build_eval_lambda(is, e),

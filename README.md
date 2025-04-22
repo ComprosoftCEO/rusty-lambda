@@ -64,6 +64,25 @@ The code file is interpreted as a sequence of either assignments (`identifier = 
 
 <br />
 
+## Repl
+
+Rusty Lambda has a build-in Read-Evaluate-Print-Loop (REPL). You can enter expressions line-by-line and see immediate results.
+
+Built-in REPL commands:
+
+- `:all` - Print all named variables
+- `:exit` - Exit the REPL
+- `:help` - Print the help message
+- `:load <file>` - Load and run a code file
+- `:print <expr>` - Print an expression without evaluating it
+- `:steps on` - Print reduction steps to stderr
+- `:steps off` - Don't print reduction steps
+
+You can press Ctrl+C to abort evaluating the current expression.
+Press Ctrl+D or type `:exit` to exit the REPL.
+
+<br />
+
 ## Basic Usage
 
 **Interactive REPL:**
