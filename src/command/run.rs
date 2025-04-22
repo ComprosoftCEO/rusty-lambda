@@ -103,6 +103,8 @@ where
     // We only want to exit if Ctrl+C pressed twice in a row
     let mut ctrl_c_should_exit = false;
 
+    println!("Welcome to Rusty Lambda, a lambda calculus interpreter");
+    println!("Type \":help\" for more information");
     loop {
       let line = match editor.readline("> ") {
         Ok(line) => {
@@ -156,7 +158,26 @@ where
     RunLineAction::Continue
   }
 
-  fn print_help(&self) {}
+  fn print_help(&self) {
+    static ALL_COMMANDS: &[(&str, &str)] = &[
+      (":all", "Print all named variables"),
+      (":exit", "Exit the REPL"),
+      (":help", "Print this help message"),
+      (":load <file>", "Load and run a code file"),
+      (":print <expr>", "Print an expression without evaluating it"),
+      (":steps on", "Print reduction steps to stderr"),
+      (":steps off", "Don't printing reduction steps"),
+    ];
+
+    let max_name_length = ALL_COMMANDS.iter().map(|(name, _)| (*name).len()).max().unwrap_or(1);
+    for (name, desc) in ALL_COMMANDS {
+      println!(
+        "{}  {desc}",
+        format!("{name: <width$}", width = max_name_length).white().bold(),
+      );
+    }
+    println!("\nPress Ctrl+C to abort current expression, Ctrl+D to exit the REPL");
+  }
 
   fn set_steps(&mut self, line: &str, args: Vec<&str>) {
     match args.first().cloned() {
@@ -184,7 +205,7 @@ where
 
   fn print_all_globals(&self, line: &str, args: Vec<&str>) {
     if !args.is_empty() {
-      println!("Expecting '{}', given '{line}'", ":all".white().bold(),);
+      println!("Expecting '{}', given '{line}'", ":all".white().bold());
       return;
     }
 
@@ -210,10 +231,12 @@ where
 
   fn load_file(&self, filename: &str) {
     let result = (|| -> super::CommandResult {
+      println!("Loading file: {}", filename.white());
+
       let file_data = self.text_data.alloc(fs::read_to_string(filename)?);
       let to_evaluate = self.executor.load_code(file_data.as_str(), Some(filename))?;
 
-      println!("Running file: {}", filename.white());
+      println!("Running code...");
       for expr in to_evaluate {
         let eval_allocator = Allocator::new();
         self.abort.store(false, Ordering::Relaxed);
