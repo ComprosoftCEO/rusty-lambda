@@ -93,7 +93,8 @@ where
     if let Err(e) = ctrlc::set_handler(|| {
       self.abort.store(true, Ordering::Relaxed);
     }) {
-      println!("{}failed to set Ctrl+C handler: {}", "Warning: ".yellow(), e);
+      println!("{}: failed to set Ctrl+C handler", "Warning".yellow());
+      println!("{e}\n");
     }
 
     // Set up REPL editor
@@ -137,7 +138,6 @@ where
     }
   }
 
-  // Return `true` to exit the program
   fn run_line(&mut self, line: String) -> RunLineAction {
     // Check for built-in commands
     let mut command_parts = line.split_whitespace();
