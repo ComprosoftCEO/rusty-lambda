@@ -145,7 +145,7 @@ where
       Some(":e" | ":ex" | ":exi" | ":exit") => return RunLineAction::Exit,
       Some(":h" | ":he" | ":hel" | ":help") => self.print_help(),
       Some(":s" | ":st" | ":ste" | ":step" | ":steps") => self.set_steps(&line, command_parts.collect()),
-      Some(":a" | ":al" | ":all") => self.print_all_globals(&line, command_parts.collect()),
+      Some(":a" | ":al" | ":all") => self.print_all_globals(),
       Some(prefix @ (":p" | ":pr" | ":pri" | ":prin" | ":print")) => {
         self.print_expression(strip_prefix(&line, prefix).to_string())
       },
@@ -203,12 +203,7 @@ where
     }
   }
 
-  fn print_all_globals(&self, line: &str, args: Vec<&str>) {
-    if !args.is_empty() {
-      println!("Expecting '{}', given '{line}'", ":all".white().bold());
-      return;
-    }
-
+  fn print_all_globals(&self) {
     let all_globals = self.executor.all_globals().borrow();
 
     let max_name_length = all_globals.keys().map(|name| (*name).len()).max().unwrap_or(1);
