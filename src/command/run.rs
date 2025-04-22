@@ -243,7 +243,7 @@ where
 
         let result = self
           .executor
-          .evaluate_with_abort(&eval_allocator, expr, self.show_steps, &self.abort);
+          .evaluate_with_abort(&eval_allocator, expr, self.show_steps, self.abort);
 
         match result {
           None => println!("Interrupted"),
@@ -270,7 +270,7 @@ where
 
         let result = self
           .executor
-          .evaluate_with_abort(&eval_allocator, expr, self.show_steps, &self.abort);
+          .evaluate_with_abort(&eval_allocator, expr, self.show_steps, self.abort);
 
         match result {
           None => println!("Interrupted"),

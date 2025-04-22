@@ -1,11 +1,8 @@
-use std::cell::{Ref, RefCell};
-use std::collections::{self, BTreeMap};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap};
+use std::error::Error;
 use std::num::NonZero;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::{
-  collections::{HashMap, btree_map},
-  error::Error,
-};
 
 use crate::expr::{Allocator, ExprRef, ExprVisitor, UnpackedExpr};
 use crate::lambda::{EvalExpressionParser as ExpressionParser, ProgramParser, StatementParser};
